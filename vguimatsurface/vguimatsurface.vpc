@@ -21,6 +21,12 @@ $Macro ARGLIBNAME "vgui_controls"
 $Include "$SRCDIR\vpc_scripts\lib_include.vpc"
 $Macro ARGLIBNAME "vgui_surfacelib"
 $Include "$SRCDIR\vpc_scripts\lib_include.vpc"
+$Macro ARGLIBNAME tier0
+$Include "$SRCDIR\vpc_scripts\lib_include.vpc"
+$Macro ARGLIBNAME tier1
+$Include "$SRCDIR\vpc_scripts\lib_include.vpc"
+$Macro ARGLIBNAME vstdlib
+$Include "$SRCDIR\vpc_scripts\lib_include.vpc"
 
 $Configuration
 {

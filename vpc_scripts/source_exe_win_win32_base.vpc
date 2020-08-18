@@ -17,10 +17,6 @@ $Include "$SRCDIR\vpc_scripts\source_exe_win_win32_debug.vpc"
 $Include "$SRCDIR\vpc_scripts\source_exe_win_win32_release.vpc"
 $Include "$SRCDIR\vpc_scripts\source_win32_base.vpc"
 
-$Include "$SRCDIR\vpc_scripts\tier0_include.vpc"
-$Include "$SRCDIR\vpc_scripts\tier1_include.vpc"
-$Include "$SRCDIR\vpc_scripts\vstdlib_include.vpc"
-
 $IgnoreRedundancyWarning	"ON"
 
 // Common Configuration

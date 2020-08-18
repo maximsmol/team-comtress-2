@@ -1,0 +1,8 @@
+$Configuration
+{
+	$General
+  {
+		$AdditionalProjectDependencies "$BASE;$ARGPROJNAME"
+	}
+}
+

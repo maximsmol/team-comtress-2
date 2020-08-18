@@ -23,13 +23,17 @@ $Macro ARGLIBNAME matsys_controls
 $Include "$SRCDIR\vpc_scripts\lib_include.vpc"
 $Macro ARGLIBNAME raytrace
 $Include "$SRCDIR\vpc_scripts\lib_include.vpc"
+$Macro ARGLIBNAME tier0
+$Include "$SRCDIR\vpc_scripts\lib_include.vpc"
+$Macro ARGLIBNAME tier1
+$Include "$SRCDIR\vpc_scripts\lib_include.vpc"
 $Macro ARGLIBNAME tier2
 $Include "$SRCDIR\vpc_scripts\lib_include.vpc"
 $Macro ARGLIBNAME tier3
 $Include "$SRCDIR\vpc_scripts\lib_include.vpc"
 $Macro ARGLIBNAME vgui_controls
 $Include "$SRCDIR\vpc_scripts\lib_include.vpc"
-$Macro ARGLIBNAME datacache
+$Macro ARGLIBNAME vstdlib
 $Include "$SRCDIR\vpc_scripts\lib_include.vpc"
 
 $Configuration
@@ -713,7 +717,7 @@ $Project "hammer_dll"
 
 	$Folder	"Link Libraries"
 	{
-		$Lib $LIBCOMMON\jpeglib
+		$Lib $LIBCOMMON\libjpeg
 		$File "$SRCDIR\lib\public\steam_api.lib"
 	}
 

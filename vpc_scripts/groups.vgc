@@ -125,6 +125,7 @@ $Group "console"
 
 $Group "hammer"
 {
+	"p4lib"
 	"fgdlib"
 	"hammer_dll"
 	"hammer_launcher"

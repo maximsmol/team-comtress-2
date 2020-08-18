@@ -17,6 +17,12 @@ $macro ARGLIBNAME "tier2"
 $Include "$SRCDIR\vpc_scripts\lib_include.vpc"
 $macro ARGLIBNAME "tier3"
 $Include "$SRCDIR\vpc_scripts\lib_include.vpc"
+$Macro ARGLIBNAME tier0
+$Include "$SRCDIR\vpc_scripts\lib_include.vpc"
+$Macro ARGLIBNAME tier1
+$Include "$SRCDIR\vpc_scripts\lib_include.vpc"
+$Macro ARGLIBNAME vstdlib
+$Include "$SRCDIR\vpc_scripts\lib_include.vpc"
 
 $Configuration
 {

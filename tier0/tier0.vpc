@@ -11,10 +11,6 @@ $Macro OUTBINDIR	"$SRCDIR\..\game\bin"
 
 $Include "$SRCDIR\vpc_scripts\source_dll_base.vpc"
 
-$Include "$SRCDIR\vpc_scripts\tier0_uninclude.vpc"
-$Include "$SRCDIR\vpc_scripts\tier1_uninclude.vpc"
-$Include "$SRCDIR\vpc_scripts\vstdlib_uninclude.vpc"
-
 $Configuration
 {
 	// TODO(maximsmol): non-windows build is broken, debug-release seapration

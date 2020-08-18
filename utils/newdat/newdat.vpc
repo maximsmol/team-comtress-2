@@ -9,6 +9,11 @@ $Macro OUTBINDIR	"$SRCDIR\..\game\bin"
 
 $Include "$SRCDIR\vpc_scripts\source_exe_con_base.vpc"
 
+$Macro ARGLIBNAME tier0
+$Include "$SRCDIR\vpc_scripts\lib_include.vpc"
+$Macro ARGLIBNAME tier1
+$Include "$SRCDIR\vpc_scripts\lib_include.vpc"
+
 $Configuration
 {
 	$Compiler
