@@ -82,6 +82,10 @@ generated_proto*/
 *.dylib
 *.xz
 
+# PyVPC
+__pycache__
+
+# binaries needed for build (not from depot)
 !lib/public/nvtc.lib
 !lib/public/ftol.obj
 !lib/public/open_vr_api.lib
