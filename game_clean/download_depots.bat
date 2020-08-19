@@ -1,5 +1,4 @@
 @echo off
-pushd %~dp0
 setlocal EnableDelayedExpansion
 
 set df=DepotDownloader\DepotDownloader.dll
@@ -21,7 +20,7 @@ if %ERRORLEVEL% NEQ 0 (
 if exist %df% (
 	rem exists
 ) else (
-	echo Please download DepotDownloader from https://github.com/SteamRE/DepotDownloader/releases/latest and place it in a folder called DepotDownloader.
+	echo Please download DepotDownloader from https://github.com/SteamRE/DepotDownloader/releases/latest and extract it to a folder called DepotDownloader.
 	echo.
 	PAUSE
 	exit 2
@@ -40,5 +39,4 @@ if %passes% equ true (
 	robocopy "%dp%\441\5249752" . /E /XC /XN /XO /XD .DepotDownloader /MOV
 )
 
-popd
 PAUSE
