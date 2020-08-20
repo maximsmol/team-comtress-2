@@ -603,9 +603,9 @@ void CNetGraphPanel::GetFrameData( 	INetChannelInfo *netchannel, int *biggest_me
 
 	if ( cl_updateinterval->GetFloat() > 0.001f )
 	{
-		flAdjust = -0.5f / cl_updateinterval->GetFloat();
+		flAdjust = cl_updateinterval->GetFloat();
 
-		m_AvgLatency += flAdjust;
+		m_AvgLatency -= flAdjust;
 	}
 
 	// Can't be below zero
@@ -1071,7 +1071,7 @@ void CNetGraphPanel::DrawUpdateRate( int xright, int y )
 void CNetGraphPanel::DrawCmdRate( int xright, int y )
 {
 	char sz[ 32 ];
-	Q_snprintf( sz, sizeof( sz ), "%3.1f/s", 1.0f / cl_cmdinterval->GetFloat() );
+	Q_snprintf(sz, sizeof(sz), "%3.1f/s", 1.0f / cl_cmdinterval->GetFloat());
 	wchar_t unicode[ 32 ];
 	g_pVGuiLocalize->ConvertANSIToUnicode( sz, unicode, sizeof( unicode  ) );
 

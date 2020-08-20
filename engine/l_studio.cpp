@@ -335,17 +335,21 @@ static void R_SetNonAmbientLightingState( int numLights, dworldlight_t *locallig
 //-----------------------------------------------------------------------------
 void R_ComputeLightingOrigin( IClientRenderable *pRenderable, studiohdr_t* pStudioHdr, const matrix3x4_t &matrix, Vector& center )
 {
+#ifdef VALVE_PURE
 	int nAttachmentIndex = pStudioHdr->IllumPositionAttachmentIndex();
 	if ( nAttachmentIndex <= 0 )
+#endif
 	{
 		VectorTransform( pStudioHdr->illumposition, matrix, center );
 	}
+#ifdef VALVE_PURE
 	else
 	{
 		matrix3x4_t attachment;
 		pRenderable->GetAttachment( nAttachmentIndex, attachment );
 		VectorTransform( pStudioHdr->illumposition, attachment, center );
 	}
+#endif
 }
 
 
