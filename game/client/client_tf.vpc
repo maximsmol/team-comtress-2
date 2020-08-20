@@ -18,6 +18,8 @@ $Include "$SRCDIR\utils\itemtest_lib\itemtest_lib_support.vpc" [$WORKSHOP_IMPORT
 
 $Macro ARGPROJNAME engine
 $Include "$SRCDIR\vpc_scripts\proj_include.vpc"
+$Macro ARGPROJNAME serverbrowser
+$Include "$SRCDIR\vpc_scripts\proj_include.vpc"
 $Macro ARGPROJNAME filesystem_io
 $Include "$SRCDIR\vpc_scripts\proj_include.vpc"
 $Macro ARGPROJNAME vguimatsurface
