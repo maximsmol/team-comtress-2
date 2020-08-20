@@ -1,0 +1,2 @@
+a argument "string" "string2" "string3" [cond123] // comment
+a { b { c { d } e } f } // test

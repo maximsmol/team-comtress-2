@@ -3,18 +3,15 @@ from contextlib import contextmanager
 from collections import deque
 
 from utils import Namespace, putter, cf
-from LineParser import LineParser
-from vpc_utils import strip_quotes, merge_command_data
+from tokenization import VPCTokenizer
+from vpc_utils import strip_quotes, raw_string, string_like, merge_command_data
 
 class CondParser:
   def __init__(self, x):
-    if not (x[0] == '[' and x[-1] == ']'):
-      putter.die(f'Condition not surrounded by [] in {cf.bold(x)}.')
-    x = x[1:-1]
-
-    self.x = x
+    assert x.type == 'cond'
+    self.x = x.x
     self.i = 0
-    self.l = len(x)
+    self.l = len(self.x)
 
   @property
   def cur(self):
@@ -110,20 +107,30 @@ def parse_cond(x):
   return p.parse()
 
 negatable_cmds = ['file']
-class VPCParser(LineParser):
+class VPCParser(VPCTokenizer):
   @contextmanager
   def need_body(self):
-    assert self.consume_line() == '{'
+    assert self.consume_token().type == '{'
     yield
-    assert self.consume_line() == '}'
+    assert self.consume_token().type == '}'
 
   def need_command(self, parts, lowercase=True):
-    # TODO(maximsmol): separate the negation logic from the command name logic?
-    if parts[0][0] == '-':
-      if parts[0][1] != '$':
-        self.die(f'Line does not contain command {cf.bold(str(parts))}.')
+    def die_no_command():
+      self.die(f'Line does not contain command {cf.bold(str(parts))}.')
 
-      cmd = parts[0][2:]
+    if len(parts) == 0:
+      die_no_command()
+
+    # TODO(maximsmol): separate the negation logic from the command name logic?
+    cmd_part = parts[0]
+    assert cmd_part.type == 'raw'
+    cmd = cmd_part.x
+
+    if cmd[0] == '-':
+      if cmd[1] != '$':
+        die_no_command()
+
+      cmd = cmd[2:]
       if lowercase:
         cmd = cmd.lower()
 
@@ -131,77 +138,136 @@ class VPCParser(LineParser):
         self.die(f'Cannot negate {cf.bold(cmd)}.')
       return '-' + cmd
 
-    if parts[0][0] != '$':
-      self.die(f'Line does not contain command {cf.bold(str(parts))}.')
+    if cmd[0] != '$':
+        die_no_command()
 
     if lowercase:
-      return parts[0][1:].lower()
-    return parts[0][1:]
+      return cmd[1:].lower()
+    return cmd[1:]
 
-
-  def parse_body(self):
+  def parse_body(self, merge_strings=False):
     with self.need_body():
-      while self.line != '}':
-        if self.line is None:
+      while True:
+        if self.token is None:
           self.die(f'Unexpected end of file for {cf.bold("$"+cmd)}.')
-        yield self.parse_command_parts()
+        if self.token.type == '}':
+          break
+        yield self.parse_command_parts(merge_strings=merge_strings)
 
-  def parse_body_commands(self, lowercase=True):
-    for body_parts in self.parse_body():
+  def parse_body_commands(self, merge_strings=False, lowercase=True):
+    for body_parts in self.parse_body(merge_strings=merge_strings):
       yield self.need_command(body_parts, lowercase=lowercase), body_parts
 
-  def parse_command_parts(self):
-    parts = []
+  def parse_command_parts(self, merge_strings=False):
+    tok = self.consume_token()
+    if tok is None:
+      self.die('Unexpected EOF: missing command parts.')
+    assert tok.type == 'parts'
 
-    i = 0
-    l = len(self.line)
+    l = len(tok.parts)
+    res = Namespace(parts=[])
 
-    def skip_whitespace():
-      nonlocal i
-      while i < l:
-        if self.line[i] not in ' \t':
-          break
-        i += 1
-    def read_word():
-      nonlocal i
-      res = ''
+    strs_to_merge = []
+    def push_merged_str():
+      if len(strs_to_merge) == 0:
+        return
+      res.parts.append(Namespace(type='str', x=''.join([x.x for x in strs_to_merge])))
 
-      in_str = self.line[i] == '"'
-      if in_str:
-        res += '"'
-        i += 1
+    for i, x in enumerate(tok.parts):
+      if x.type == 'str':
+        if not merge_strings:
+          res.parts.append(x)
+          continue
+        strs_to_merge.append(x)
+        continue
 
-      in_cond = self.line[i] == '['
-      while i < l:
-        if not in_cond and not in_str:
-          if self.line[i] in ' \t':
-            break
-        res += self.line[i]
-        if in_str and self.line[i] == '"':
-          i += 1
-          break
-        if in_cond and self.line[i] == ']':
-          i += 1
-          break
-        i += 1
-      return res
+      push_merged_str()
 
-    skip_whitespace()
-    while i < l:
-      parts.append(read_word())
-      skip_whitespace()
+      if x.type == 'raw':
+        res.parts.append(x)
+        continue
+      if x.type == 'cond':
+        assert i == l-1
+        res.parts.append(x)
+        continue
+      self.die(f'Unknown token "{cf.bold(x.type)}".')
 
-    self.next_line()
+    if 'comment' in tok:
+      res.comment = tok.comment
 
-    return parts
+    # TODO(maximsmol): handle comments properly
+    if 'comment' in res:
+      pass
+    return res.parts
+
+  # def parse_command_parts(self):
+  #   parts = []
+
+  #   i = 0
+  #   l = len(self.line)
+
+  #   def skip_whitespace():
+  #     nonlocal i
+  #     while i < l:
+  #       if self.line[i] not in ' \t':
+  #         break
+  #       i += 1
+  #   def read_word():
+  #     nonlocal i
+  #     res = ''
+
+  #     in_str = self.line[i] == '"'
+  #     if in_str:
+  #       res += '"'
+  #       i += 1
+
+  #     in_cond = self.line[i] == '['
+  #     while i < l:
+  #       if not in_cond and not in_str:
+  #         if self.line[i] in ' \t':
+  #           break
+  #       res += self.line[i]
+  #       if in_str and self.line[i] == '"':
+  #         i += 1
+  #         break
+  #       if in_cond and self.line[i] == ']':
+  #         i += 1
+  #         break
+  #       i += 1
+  #     return res
+
+  #   skip_whitespace()
+  #   while i < l:
+  #     parts.append(read_word())
+  #     skip_whitespace()
+
+  #   self.next_line()
+
+  #   return parts
+
+  @property
+  def token(self):
+    while True:
+      res = super().token
+      if res is None:
+        return None
+      if res.type != 'comment':
+        return res
+      super().consume_token()
+
+  def consume_token(self):
+    while True:
+      res = super().consume_token()
+      if res is None:
+        return None
+      if res.type != 'comment':
+        return res
 
   def parse(self, *args, **kwargs):
     try:
       return self._parse(*args, **kwargs)
-    except ValueError as e:
-      self.die('Something went wrong.', exception=e)
-    except AssertionError as e:
-      self.die('Tripped an assert.', exception=e)
+    except BaseException as e:
+      self.die(repr(e), exception=e)
 
 class ManifestParser(VPCParser):
   def parse_command(self, res):
@@ -255,7 +321,7 @@ class ManifestParser(VPCParser):
                     groups=Namespace(),
                     games=[],
                     includes=[])
-    while self.line is not None:
+    while self.token is not None:
       self.parse_command(res)
     return res
 
@@ -331,21 +397,21 @@ class ProjectParser(VPCParser):
                          instructions=[])
         folder.files.append(file)
 
-        if body_parts[-1][0] == '[':
+        if body_parts[-1].type == 'cond':
           file.cond = parse_cond(body_parts[-1])
           body_parts = body_parts[:-1]
 
         for p in body_parts[1:]:
           file.paths.append(strip_quotes(p))
 
-        if self.line == '{':
+        if self.token.type == '{':
           for cmd, body_parts in self.parse_body_commands():
             if cmd == 'configuration':
               self.parse_configuration_comamnd(file, body_parts)
             else:
               self.die(f'Unknown file command {cf.bold(cmd)}.')
       elif cmd in ['libexternal']:
-        lib = Namespace(paths=strip_quotes(body_parts[1]))
+        lib = Namespace(paths=string_like(body_parts[1]))
         folder.libs.append(lib)
 
         if len(body_parts) == 3:
@@ -359,20 +425,24 @@ class ProjectParser(VPCParser):
     parts = self.parse_command_parts()
     cmd = self.need_command(parts, lowercase=False)
     if cmd == 'Macro':
-      name = strip_quotes(parts[1])
-      value = strip_quotes(parts[2])
+      name = string_like(parts[1])
+      # TODO(maximsmol): weird unquoted macro values are allowed
+      #                  and we skip the spaces in them + this parsing
+      #                  is all around weird
+      value = string_like(parts[2])
 
       cond = None
       if len(parts) > 3:
+        # TODO(maximsmol): check that weird unquoted macros are unquoted
         value_parts = [value]
         i = 3
         for p in parts[3:]:
-          if p[0] == '[':
+          if p.type == 'cond':
             cond = parse_cond(parts[3])
-            assert len(parts) == i+1
+            assert i == len(parts)-1
             break
 
-          value_parts.append(p)
+          value_parts.append(raw_string(p))
           i += 1
         # TODO(maximsmol): this actually loses some whitespaces
         value = ' '.join(value_parts)
@@ -489,7 +559,7 @@ class ProjectParser(VPCParser):
 
   def _parse(self):
     res = Namespace(instructions=[])
-    while self.line is not None:
+    while self.token is not None:
       self.parse_command(res)
     return res
 

@@ -18,11 +18,20 @@ def merge_command_data(to, from_, allow_duplicates=False):
     return
   raise ValueError('Unsure how to merge.')
 
+def raw_string(x):
+  assert x.type == 'raw'
+  return x.x
+
+def string_like(x):
+  assert x.type == 'str' or x.type == 'raw'
+  return x.x
+
 def strip_quotes(x):
-  if x[0] == '"':
-    assert x[-1] == '"'
-    return x[1:-1]
-  return x
+  # this looks weird because we did not have a proper
+  # tokenizer in the past and this actually tore quotes
+  # off of raw strings like '"value"'
+  assert x.type == 'str'
+  return x.x
 
 def render_cond(x, macro_state):
   def render(x, enclosing_type):

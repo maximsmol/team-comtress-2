@@ -1,3 +1,4 @@
+import sys
 import re
 from pathlib import PureWindowsPath as Path
 from collections import deque
@@ -7,11 +8,12 @@ import ntpath
 import args
 from vpc_utils import render_cond, merge_command_data
 from utils import Namespace, putter, print, cf
-from vpc import read_manifest, read_project
+from vpc import read_manifest, read_project, parse_cond
 import vpc
 
 parsed_args = args.parser.parse_args()
 
+# TODO(maximsmol): parse this on-demand
 mainlist = read_manifest(Path('vpc_scripts') / 'default.vgc')
 to_include = deque(mainlist.includes)
 while len(to_include) > 0:
@@ -54,10 +56,10 @@ def err_dump_macro_state():
 
   if not have_non_bool_macros:
     putter.error('Macros: ' + putter.render_list(bool_macro_strs))
+  else:
+    putter.error('Macros:')
 
-  putter.error('Macros:')
   with putter.indent():
-    putter.error(putter.render_list(bool_macro_strs))
     for k, v in macro_state.items():
       if v is True:
         continue
@@ -65,13 +67,13 @@ def err_dump_macro_state():
 
 def die(msg, *args, linefeed_before=True, **kwargs):
   if linefeed_before:
-    putter.error()
+    putter.newline()
   err_dump_macro_state()
   putter.newline()
   putter.die(msg, *args, **kwargs)
 
 uppercase_re = re.compile(r'[A-Z]')
-uppercase_alphanum_re = re.compile(r'[A-Z0-9]')
+uppercase_alphanum_re = re.compile(r'[A-Z0-9_]')
 def expand_macros_in_string(x):
   i = 0
   l = len(x)
@@ -84,10 +86,19 @@ def expand_macros_in_string(x):
     nonlocal in_macro, macro_name, res
 
     if macro_name not in macro_state:
-      die(f'Macro {cf.bold(macro_name)} is undefined.')
-    if not isinstance(macro_state[macro_name], str):
-      die(f'Macro {cf.bold(macro_name)} is not a string.')
-    res += macro_state[macro_name]
+      # TODO(maximsmol): is this fine?
+      # die(f'Macro {cf.bold(macro_name)} is undefined.')
+      val = "0"
+    else:
+      val = macro_state[macro_name]
+
+    if not isinstance(val, str):
+      # TODO(maximsmol): is this fine?
+      # die(f'Macro {cf.bold(macro_name)} is not a string.')
+      if not isinstance(val, bool):
+        die(f'Macro {cf.bold(macro_name)} has invalid type.')
+      val = "1" if val is True else "0"
+    res += val
 
     in_macro = False
     macro_name = ''
@@ -111,6 +122,9 @@ def expand_macros_in_string(x):
       res += x[i]
 
     i += 1
+  if in_macro:
+    commit_macro()
+  assert not in_macro
 
   return res
 
@@ -128,9 +142,21 @@ def eval_cond(x):
       return False
     return True
   elif x.type == 'macro':
-    # if x.name not in macro_state:
-    #   putter.die(f'Macro {x.name} is not defined.')
-    return macro_state.get(x.name, False) == x.setto
+    if x.name not in macro_state:
+      # putter.die(f'Macro {x.name} is not defined.')
+      return False == x.setto
+
+    state = macro_state[x.name]
+    if isinstance(state, bool):
+      return state == x.setto
+    if not isinstance(state, str):
+      self.die(f'Cond {state} has invalid type.')
+
+    print(state, x.name)
+    assert False
+
+    expr = expand_macros_in_string(state)
+    return eval_cond(parse_cond(Namespace(type='cond', x=expr))) == x.setto
   else:
     putter.die(f'Unknown condition type: {cf.bold(x.type)}')
 
@@ -177,38 +203,40 @@ def build_project(name):
     for inst in data.instructions:
       if inst.type == 'conditional':
         if 'cond' not in inst or eval_cond(inst.cond):
-          if inst.value == '1':
-            inst.value = True
-          if inst.value == '0':
-            inst.value = False
+          val = expand_macros_in_string(inst.value)
+          if val == '1':
+            val = True
+          if val == '0':
+            val = False
 
-          if inst.value in no_strings or inst.value in yes_strings:
-            putter.warning(f'Found yes/no stringbut refusing to convert it: {render_macro_value(inst.value)}')
+          if val in no_strings or val in yes_strings:
+            putter.warning(f'Found yes/no stringbut refusing to convert it: {render_macro_value(val)}')
 
-          print(f'{cf.magenta("Set conditional")} {cf.bold("$"+inst.name)} = {render_macro_value(inst.value)}{cond_suffix(inst)}')
+          print(f'{cf.magenta("Set conditional")} {cf.bold("$"+inst.name)} = {render_macro_value(val)}{cond_suffix(inst)}')
           if inst.name in macro_state:
             with putter.indent():
               putter.warning(f'Overriding old value of {render_macro_value(macro_state[inst.name])}')
-          macro_state[inst.name] = inst.value
+          macro_state[inst.name] = val
         else:
-          print(f'Not setting conditional {cf.bold("$"+inst.name)} = {render_macro_value(inst.value)}{cond_suffix(inst)} due to the false condition')
+          print(f'Not setting conditional {cf.bold("$"+inst.name)} = {render_macro_value(val)}{cond_suffix(inst)} due to the false condition')
       elif inst.type == 'macro':
         if 'cond' not in inst or eval_cond(inst.cond):
-          if inst.value == '1':
-            inst.value = True
-          if inst.value == '0':
-            inst.value = False
+          val = expand_macros_in_string(inst.value)
+          if val == '1':
+            val = True
+          if val == '0':
+            val = False
 
-          if inst.value in no_strings or inst.value in yes_strings:
-            putter.warning(f'Found yes/no stringbut refusing to convert it: {render_macro_value(inst.value)}')
+          if val in no_strings or val in yes_strings:
+            putter.warning(f'Found yes/no stringbut refusing to convert it: {render_macro_value(val)}')
 
-          print(f'{cf.magenta("Set")} {cf.bold("$"+inst.name)} = {render_macro_value(inst.value)}{cond_suffix(inst)}')
+          print(f'{cf.magenta("Set")} {cf.bold("$"+inst.name)} = {render_macro_value(val)}{cond_suffix(inst)}')
           if inst.name in macro_state:
             with putter.indent():
               putter.warning(f'Overriding old value of {render_macro_value(macro_state[inst.name])}')
-          macro_state[inst.name] = inst.value
+          macro_state[inst.name] = val
         else:
-          print(f'Not setting {cf.bold("$"+inst.name)} = {render_macro_value(inst.value)}{cond_suffix(inst)} due to the false condition')
+          print(f'Not setting {cf.bold("$"+inst.name)} = {render_macro_value(val)}{cond_suffix(inst)} due to the false condition')
       elif inst.type == 'include':
         if 'cond' not in inst or eval_cond(inst.cond):
           print(f'{cf.magenta("Including")} {cf.italic(inst.path)}{cond_suffix(inst)}')
