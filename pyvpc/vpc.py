@@ -8,7 +8,9 @@ from vpc_utils import strip_quotes, raw_string, string_like, merge_command_data
 
 class CondParser:
   def __init__(self, x):
-    assert x.type == 'cond'
+    if x.type != 'cond':
+      raise ValueError('Expected condition token.')
+
     self.x = x.x
     self.i = 0
     self.l = len(self.x)
@@ -30,6 +32,14 @@ class CondParser:
       value = False
       self.i += 1
       self.skip_spaces()
+
+    # TODO(maximsmol): support other "truthy" and "falsy" values?
+    if self.cur == '0':
+      self.i += 1
+      return Namespace(type='const', val=(not value))
+    if self.cur == '1':
+      self.i += 1
+      return Namespace(type='const', val=value)
 
     if self.cur != '$':
       putter.die(f'$ does not preceed macro name in {cf.bold(self.x)}.')
@@ -331,21 +341,126 @@ def read_manifest(path):
     res = p.parse()
     return res
 
+def _mk_configuration_command(pythonized, nargs=0, allow_body=False):
+  return Namespace(pythonized=pythonized, nargs=nargs, allow_body=allow_body)
 configuration_commands = Namespace(
-  Compiler=Namespace(pythonized='compiler'),
-  General=Namespace(pythonized='general'),
-  Linker=Namespace(pythonized='linker'),
-  Debugging=Namespace(pythonized='debugging'),
-  ManifestTool=Namespace(pythonized='manifest_tool'),
-  XMLDocumentGenerator=Namespace(pythonized='xml_document_generator'),
-  BrowseInformation=Namespace(pythonized='browse_information'),
-  Resources=Namespace(pythonized='resources'),
-  CustomBuildStep=Namespace(pythonized='custom_build_step'),
-  PreBuildEvent=Namespace(pythonized='pre_build_event'),
-  PreLinkEvent=Namespace(pythonized='pre_link_event'),
-  PostBuildEvent=Namespace(pythonized='post_build_event'),
-  PostLinkEvent=Namespace(pythonized='post_link_event'))
+  Compiler=_mk_configuration_command('compiler', allow_body=True),
+  General=_mk_configuration_command('general', allow_body=True),
+  Linker=_mk_configuration_command('linker', allow_body=True),
+  Debugging=_mk_configuration_command('debugging', allow_body=True),
+  ManifestTool=_mk_configuration_command('manifest_tool', allow_body=True),
+  XMLDocumentGenerator=_mk_configuration_command('xml_document_generator', allow_body=True),
+  BrowseInformation=_mk_configuration_command('browse_information', allow_body=True),
+  Resources=_mk_configuration_command('resources', allow_body=True),
+  ExcludedFromBuild=_mk_configuration_command('excluded_from_build', nargs=1),
+  CustomBuildStep=_mk_configuration_command('custom_build_step', allow_body=True),
+  PreBuildEvent=_mk_configuration_command('pre_build_event', allow_body=True),
+  PreLinkEvent=_mk_configuration_command('pre_link_event', allow_body=True),
+  PostBuildEvent=_mk_configuration_command('post_build_event', allow_body=True),
+  PostLinkEvent=_mk_configuration_command('post_link_event', allow_body=True))
+
+# TODO(maximsmol): we are keeping track of "type" here just for asserts, it's
+#                  not really necessary
+# TODO(maximsmol): set allow cond only for specific commands
+# TODO(maximsmol): deprecate lowercase?
+def _mk_cmd_schema(name, pythonized_name=None,
+                   args=[], optional_args=[],
+                   body_schema=None,
+                   allow_cond=True):
+  return Namespace(name=name, type='cmd', args=args, optional_args=optional_args, pythonized_name=pythonized_name, body_schema=body_schema, allow_cond=True)
+def _mk_cmd_list_schema(pretty_prefix, *args, declarative=False):
+  res = Namespace(type='cmd_list', pretty_prefix=pretty_prefix, cmds=Namespace(), declarative=declarative)
+  for cmd in args:
+    assert cmd.name not in res.cmds
+    res.cmds[cmd.name] = cmd
+  return res
+custom_build_step_props_schema = _mk_cmd_list_schema(
+  'custom build step',
+  _mk_cmd_schema('Description', args=['str']),
+  _mk_cmd_schema('CommandLine', args=['merged_str'], allow_cond=True),
+  _mk_cmd_schema('Outputs', args=['str']),
+  declarative=False) # TODO(maximsmol): True, but uses $BASE
+custom_build_step_standalone_schema = _mk_cmd_schema(
+  'CustomBuildStep',
+  pythonized_name='custom_build_step', # TODO(maximsmol): generate these?
+  args=['str'],
+  body_schema=custom_build_step_props_schema)
+project_schema = _mk_cmd_list_schema(
+  'project',
+  custom_build_step_standalone_schema)
+
 class ProjectParser(VPCParser):
+  def parse_cmd_schema(self, res, schema, parts):
+    assert schema.type == 'cmd'
+    part_cmd = self.need_command(parts, lowercase=False)
+    assert part_cmd == schema.name
+
+    i = 1
+    l = len(parts)
+    def cast_arg(arg_type, x):
+      if arg_type == 'str':
+        return strip_quotes(x)
+      if arg_type == 'sym':
+        return raw_string(x)
+      if arg_type == 'any_str':
+        return string_like(x)
+      if arg_type == 'merged_str':
+        nonlocal i
+        res = [strip_quotes(x)]
+        while True:
+          if i >= l:
+            break
+          cur = parts[i]
+          if cur.type != 'str':
+            break
+          res.append(strip_quotes(x))
+          i += 1
+        return ''.join(res)
+      self.die(f'Unknown argument type {cf.bold(arg_type)}.')
+
+    # args begin at idx 1
+    optional_args_start = 1 + len(schema.args)
+    while i < l:
+      cur = parts[i]
+      if cur.type == 'cond':
+        # cond is only allowed at the very end
+        assert i == l-1
+        res.cond = parse_cond(cur)
+        break
+
+      if i < optional_args_start:
+        arg_type = schema.args[i - 1]
+      elif i - optional_args_start < len(schema.optional_args):
+        arg_type = schema.optional_args[i - optional_args_start]
+      else:
+        self.die(f'Too many arguments for {cf.bold(schema.name)}')
+
+      # must increment here because cast_arg will need lookahead to merge strings
+      i += 1
+      res.setdefault('args', []).append(cast_arg(arg_type, cur))
+
+    if schema.body_schema is not None:
+      res.body = Namespace()
+      for cmd, body_parts in self.parse_body_commands(lowercase=False):
+        self.parse_cmd_list_schema(res.body, schema.body_schema, body_parts)
+
+  def parse_cmd_list_schema(self, res, schema, parts):
+    assert schema.type == 'cmd_list'
+
+    cmd = self.need_command(parts, lowercase=False)
+    if cmd not in schema.cmds:
+      self.die(f'Unknown {schema.pretty_prefix} command')
+
+    cmd_data = Namespace(cmd=cmd)
+    cmd_schema = schema.cmds[cmd]
+    self.parse_cmd_schema(cmd_data, cmd_schema, parts)
+    if schema.declarative:
+      if cmd in res:
+        self.die(f'Duplicate {cmd}.')
+      res[cmd] = cmd_data
+      return
+    res.setdefault('instructions', []).append(cmd_data)
+
   def parse_configuration_comamnd(self, res, parts):
     inst = Namespace(type='configuration')
     res.instructions.append(inst)
@@ -355,23 +470,52 @@ class ProjectParser(VPCParser):
     else:
       assert len(parts) == 1
 
-    def generic_prop_group(name, body_parts):
+    def generic_prop_group(group_data, body_parts):
+
       group = Namespace()
-      inst.setdefault(name, []).append(group)
+      inst.setdefault(group_data.pythonized, []).append(group)
 
-      if len(body_parts) == 2:
-        group.cond = parse_cond(body_parts[1])
+      if group_data.nargs > 0:
+        group.args = body_parts[1:group_data.nargs+1]
+
+      if len(body_parts) == group_data.nargs + 2:
+        group.cond = parse_cond(body_parts[-1])
       else:
-        assert len(body_parts) == 1
+        assert len(body_parts) == group_data.nargs + 1
 
-      for cmd, body_parts in self.parse_body_commands(lowercase=False):
-        group.setdefault(cmd, []).append(body_parts[1:])
+      if group_data.allow_body:
+        for cmd, body_parts in self.parse_body_commands(lowercase=False):
+          group.setdefault(cmd, []).append(body_parts[1:])
+      elif self.token.type == '{':
+        # TODO(maximsmol): use the real name here
+        self.die(f'Configuration command {group_data.pythonized} should not have a body.')
 
     for cmd, body_parts in self.parse_body_commands(lowercase=False):
       if cmd not in configuration_commands:
         self.die(f'Unknown configuration command {cf.bold(cmd)}.')
 
-      generic_prop_group(configuration_commands[cmd].pythonized, body_parts)
+      generic_prop_group(configuration_commands[cmd], body_parts)
+
+  def parse_file_command(self, res, parts):
+    cmd = self.need_command(parts, lowercase=False)
+    file = Namespace(type=cmd, # TODO(maximsmol): strip -
+                     paths=[],
+                     instructions=[])
+    res.append(file)
+
+    if parts[-1].type == 'cond':
+      file.cond = parse_cond(parts[-1])
+      parts = parts[:-1]
+
+    for p in parts[1:]:
+      file.paths.append(strip_quotes(p))
+
+    if self.token.type == '{':
+      for cmd, parts in self.parse_body_commands():
+        if cmd == 'configuration':
+          self.parse_configuration_comamnd(file, parts)
+        else:
+          self.die(f'Unknown file command {cf.bold(cmd)}.')
 
   def parse_folder_command(self, res, parts):
     assert len(parts) >= 2
@@ -392,26 +536,10 @@ class ProjectParser(VPCParser):
     for cmd, body_parts in self.parse_body_commands():
       if cmd == 'folder':
         self.parse_folder_command(folder, body_parts)
-      elif cmd in ['file', '-file']:
-        file = Namespace(paths=[],
-                         instructions=[])
-        folder.files.append(file)
-
-        if body_parts[-1].type == 'cond':
-          file.cond = parse_cond(body_parts[-1])
-          body_parts = body_parts[:-1]
-
-        for p in body_parts[1:]:
-          file.paths.append(strip_quotes(p))
-
-        if self.token.type == '{':
-          for cmd, body_parts in self.parse_body_commands():
-            if cmd == 'configuration':
-              self.parse_configuration_comamnd(file, body_parts)
-            else:
-              self.die(f'Unknown file command {cf.bold(cmd)}.')
-      elif cmd in ['libexternal']:
-        lib = Namespace(paths=string_like(body_parts[1]))
+      elif cmd in ['file', '-file', 'dynamicfile', '-dynamicfile']:
+        self.parse_file_command(folder.files, parts)
+      elif cmd in ['lib', 'libexternal']:
+        lib = Namespace(type=cmd, paths=string_like(body_parts[1]))
         folder.libs.append(lib)
 
         if len(body_parts) == 3:
@@ -456,8 +584,7 @@ class ProjectParser(VPCParser):
         inst.cond = cond
       res.instructions.append(inst)
     elif cmd == 'Conditional':
-      name = parts[1]
-      assert name[0] != '"' and name[-1] != '"'
+      name = raw_string(parts[1])
 
       inst = Namespace(type='conditional')
       res.instructions.append(inst)
@@ -478,7 +605,7 @@ class ProjectParser(VPCParser):
       else:
         assert len(parts) == 2
 
-      inst.name = strip_quotes(parts[1])
+      inst.name = string_like(parts[1])
       inst.allow_empty = False
     elif cmd == 'MacroRequiredAllowEmpty':
       inst = Namespace(type='macro_required')
@@ -488,7 +615,7 @@ class ProjectParser(VPCParser):
       else:
         assert len(parts) == 2
 
-      inst.name = strip_quotes(parts[1])
+      inst.name = string_like(parts[1])
       inst.allow_empty = True
     elif cmd == 'LoadAddressMacro':
       inst = Namespace(type='address_macro')
@@ -496,8 +623,7 @@ class ProjectParser(VPCParser):
 
       assert len(parts) == 2
 
-      inst.name = parts[1]
-      assert inst.name[0] != '"' and inst.name[-1] != '"'
+      inst.name = raw_string(parts[1])
 
       for body_parts in self.parse_body():
         # TODO(maximsmol): parse this
@@ -509,10 +635,9 @@ class ProjectParser(VPCParser):
 
       assert len(parts) == 4
 
-      inst.name = parts[1]
-      assert inst.name[0] != '"' and inst.name[-1] != '"'
+      inst.name = raw_string(parts[1])
 
-      inst.addr = int(parts[2], 16)
+      inst.addr = int(raw_string(parts[2]), 16)
       inst.cond = parse_cond(parts[3])
 
       for body_parts in self.parse_body():
@@ -541,7 +666,8 @@ class ProjectParser(VPCParser):
       self.parse_configuration_comamnd(res, parts)
     elif cmd == 'Project':
       proj = Namespace(type='project',
-                       folders=Namespace())
+                       folders=Namespace(),
+                       files=[])
       res.instructions.append(proj)
 
       if len(parts) == 2:
@@ -552,8 +678,14 @@ class ProjectParser(VPCParser):
       for cmd, body_parts in self.parse_body_commands():
         if cmd == 'folder':
           self.parse_folder_command(proj, body_parts)
+        elif cmd in ['file']:
+          self.parse_file_command(proj.files, parts)
         else:
           self.die(f'Unknown project command {cf.bold(cmd)}.')
+    elif cmd == 'CustomBuildStep':
+      self.parse_cmd_list_schema(res, project_schema, parts)
+      # TODO(maximsmol): type will be renamed to name
+      res.instructions[-1].type = cmd
     else:
       self.die(f'Unknown command {cf.bold(cmd)}.')
 

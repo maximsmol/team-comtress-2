@@ -119,6 +119,8 @@ class VPCTokenizer(LineParser):
           nonlocal cur
           if cur[-1] == '\n':
             # ugh... windows...
+            # files might not end with LF so we have to check instead of
+            # just asserting
             cur = cur[:-1]
           # TODO(maximsmol): we strip here, so if there was a "\ " we think
           #                  it is just a continuation
@@ -158,9 +160,11 @@ class VPCTokenizer(LineParser):
         # cannot use an iterator because we replace cur midway through
         # if we find a continuation
         i = -1
+        l = len(cur)
+        last_nonempty = l - 1
         while True:
           i += 1
-          if i >= len(cur):
+          if i >= l:
             break
           x = cur[i]
 
@@ -180,11 +184,15 @@ class VPCTokenizer(LineParser):
             part += x
             continue
 
-          if x == '\\':
-            # TODO(maximsmol): make sure the line is empty past this
+          # windows paths have this and VPC does not always put paths in quoted strings
+          # why, Valve?
+          if x == '\\' and i == last_nonempty:
             cur = self.consume_line()
-            i = 0
             line_end_processing()
+            # this is kind of ugly
+            i = 0
+            l = len(cur)
+            last_nonempty = l - 1
             continue
 
           if got_one_slash:
@@ -208,6 +216,7 @@ class VPCTokenizer(LineParser):
             assert in_cond
             in_cond = False
             flush_part('cond')
+            # TODO(maximsmol): the line MUST end here technically
             continue
           if in_cond:
             if x == '"':
@@ -236,7 +245,7 @@ class VPCTokenizer(LineParser):
 
             continue
 
-          if x in '"\\[]{}':
+          if x in '"[]{}':
             self.die(f'Special character {x} in raw token.')
           if x in _spaces:
             if part != '':

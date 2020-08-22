@@ -5,11 +5,11 @@
 //
 //-----------------------------------------------------------------------------
 
-$macro ARGLIBNAME "vpklib"
+$Macro ARGLIBNAME "vpklib"
 $Include "$SRCDIR\vpc_scripts\lib_include.vpc"
 
 $Project
-{	
+{
 	$Folder	"Source Files"
 	{
 		$File	"$SRCDIR\common\crypto.cpp"
@@ -24,7 +24,7 @@ $Project
 		}
 	}
 
-	$Folder	"Link Libraries" 
+	$Folder	"Link Libraries"
 	{
 		// So we can check the signature of the item schema.
 		$Lib	"$SRCDIR\lib\public\$PLATSUBDIR\2013\release\cryptlib" [$WINDOWS&&!$VS2015]
@@ -44,7 +44,7 @@ $Project
 		{
 			$Configuration "Release" { $ExcludedFromBuild "Yes" }
 		}
-		
+
 		$File "$SRCDIR\lib\common\$PLATSUBDIR\2015\release\cryptlib.lib" [$WIN64]
 		{
 			$Configuration "Debug" 	{ $ExcludedFromBuild "Yes" }

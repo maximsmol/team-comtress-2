@@ -37,6 +37,9 @@ def cond_suffix(x):
   return f' {render_cond(x.cond, macro_state)}'
 
 def render_macro_value(x):
+  if not isinstance(x, str):
+    return str(x)
+
   stripped = x.strip()
   if stripped != x or stripped == '':
     return cf.bold(f'"{x}"')
@@ -72,9 +75,9 @@ def die(msg, *args, linefeed_before=True, **kwargs):
   putter.newline()
   putter.die(msg, *args, **kwargs)
 
-uppercase_re = re.compile(r'[A-Z]')
+uppercase_re = re.compile(r'[A-Z_]')
 uppercase_alphanum_re = re.compile(r'[A-Z0-9_]')
-def expand_macros_in_string(x):
+def expand_macros_in_string(x, key_name=None):
   i = 0
   l = len(x)
 
@@ -85,10 +88,17 @@ def expand_macros_in_string(x):
   def commit_macro():
     nonlocal in_macro, macro_name, res
 
+    if macro_name == 'BASE':
+      if key_name is None:
+        die(f'Got {cf.bold("$BASE")} but key_name is None.')
+      if key_name not in macro_state:
+        putter.warning(f'Got {cf.bold("$BASE")} but the macro is not yet defined.')
+      return macro_state.get(key_name, '')
+
     if macro_name not in macro_state:
       # TODO(maximsmol): is this fine?
       # die(f'Macro {cf.bold(macro_name)} is undefined.')
-      val = "0"
+      val = '0'
     else:
       val = macro_state[macro_name]
 
@@ -97,7 +107,7 @@ def expand_macros_in_string(x):
       # die(f'Macro {cf.bold(macro_name)} is not a string.')
       if not isinstance(val, bool):
         die(f'Macro {cf.bold(macro_name)} has invalid type.')
-      val = "1" if val is True else "0"
+      val = '1' if val is True else '0'
     res += val
 
     in_macro = False
@@ -116,7 +126,7 @@ def expand_macros_in_string(x):
 
     if in_macro:
       if macro_name == '' and uppercase_re.fullmatch(x[i]) is None:
-        die(f'Macro {macro_name} starts with an invalid symbol.')
+        die(f'Macro in {x} starts with an invalid symbol.')
       macro_name += x[i]
     else:
       res += x[i]
@@ -141,6 +151,8 @@ def eval_cond(x):
         continue
       return False
     return True
+  elif x.type == 'const':
+    return x.val
   elif x.type == 'macro':
     if x.name not in macro_state:
       # putter.die(f'Macro {x.name} is not defined.')
@@ -152,8 +164,8 @@ def eval_cond(x):
     if not isinstance(state, str):
       self.die(f'Cond {state} has invalid type.')
 
-    print(state, x.name)
-    assert False
+    # print(f'{state}, {x.name}')
+    # assert False
 
     expr = expand_macros_in_string(state)
     return eval_cond(parse_cond(Namespace(type='cond', x=expr))) == x.setto
@@ -202,26 +214,26 @@ def build_project(name):
     data = read_project(path)
     for inst in data.instructions:
       if inst.type == 'conditional':
+        val = expand_macros_in_string(inst.value)
         if 'cond' not in inst or eval_cond(inst.cond):
-          val = expand_macros_in_string(inst.value)
           if val == '1':
             val = True
           if val == '0':
             val = False
 
           if val in no_strings or val in yes_strings:
-            putter.warning(f'Found yes/no stringbut refusing to convert it: {render_macro_value(val)}')
+            putter.warning(f'Found yes/no string but refusing to convert it: {render_macro_value(val)}')
 
           print(f'{cf.magenta("Set conditional")} {cf.bold("$"+inst.name)} = {render_macro_value(val)}{cond_suffix(inst)}')
-          if inst.name in macro_state:
+          if inst.name in macro_state and val != macro_state[inst.name]:
             with putter.indent():
               putter.warning(f'Overriding old value of {render_macro_value(macro_state[inst.name])}')
           macro_state[inst.name] = val
         else:
           print(f'Not setting conditional {cf.bold("$"+inst.name)} = {render_macro_value(val)}{cond_suffix(inst)} due to the false condition')
       elif inst.type == 'macro':
+        val = expand_macros_in_string(inst.value)
         if 'cond' not in inst or eval_cond(inst.cond):
-          val = expand_macros_in_string(inst.value)
           if val == '1':
             val = True
           if val == '0':
@@ -231,7 +243,7 @@ def build_project(name):
             putter.warning(f'Found yes/no stringbut refusing to convert it: {render_macro_value(val)}')
 
           print(f'{cf.magenta("Set")} {cf.bold("$"+inst.name)} = {render_macro_value(val)}{cond_suffix(inst)}')
-          if inst.name in macro_state:
+          if inst.name in macro_state and val != macro_state[inst.name]:
             with putter.indent():
               putter.warning(f'Overriding old value of {render_macro_value(macro_state[inst.name])}')
           macro_state[inst.name] = val
