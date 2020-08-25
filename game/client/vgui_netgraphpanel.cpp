@@ -131,8 +131,8 @@ private:
 	HFont			m_hFont;
 
 	HFont			m_hFontSmall;
-	const ConVar		*cl_updateinterval;
-	const ConVar		*cl_cmdinterval;
+	const ConVar_ServerBounded		*cl_updateinterval;
+	const ConVar_ServerBounded      *cl_cmdinterval;
 
 public:
 						CNetGraphPanel( VPANEL parent );
@@ -229,8 +229,8 @@ CNetGraphPanel::CNetGraphPanel( VPANEL parent )
 
 	InitColors();
 
-	cl_updateinterval = cvar->FindVar( "cl_updateinterval" );
-	cl_cmdinterval = cvar->FindVar( "cl_cmdinterval" );
+	cl_updateinterval = static_cast<ConVar_ServerBounded*>(cvar->FindVar( "cl_updateinterval" ));
+	cl_cmdinterval = static_cast<ConVar_ServerBounded*>(cvar->FindVar( "cl_cmdinterval" ));
 	assert( cl_updateinterval && cl_cmdinterval );
 
 	memset( sendcolor, 0, 3 );
@@ -782,7 +782,7 @@ void CNetGraphPanel::DrawTextFields( int graphvalue, int x, int y, int w, netban
 			interpcolor[ 2 ] = 31;
 		}
 		// flInterp is below recommended setting!!!
-		else if ( flInterp < ( 2.0f / cl_updateinterval->GetFloat() ) )
+		else if ( flInterp < ( 2.0f * cl_updateinterval->GetFloat() ) )
 		{
 			interpcolor[ 0 ] = 255;
 			interpcolor[ 1 ] = 125;
