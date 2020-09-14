@@ -97,7 +97,7 @@ $Configuration	"Debug"
 {
 	$Debugging
 	{
-		$CommandArguments "-steam -game tf -insecure -novid -nojoy -nosteamcontroller -nohltv -particles 1 -noborder -particle_fallback 2 -dev -allowdebug -condebug" [$WINDOWS]
+		$CommandArguments "-steam -game tf -insecure -novid -nojoy -nosteamcontroller -nohltv -noborder -particle_fallback 2 -dev -allowdebug -condebug" [$WINDOWS]
 	}
 }
 
@@ -105,7 +105,7 @@ $Configuration	"Release"
 {
 	$Debugging
 	{
-		$CommandArguments "-steam -game tf -insecure -novid -nojoy -nosteamcontroller -nohltv -particles 1 -noborder -particle_fallback 2" [$WINDOWS]
+		$CommandArguments "-steam -game tf -insecure -novid -nojoy -nosteamcontroller -nohltv -noborder -particle_fallback 2 -dev -allowdebug -condebug" [$WINDOWS]
 	}
 }
 
