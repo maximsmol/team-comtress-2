@@ -207,12 +207,12 @@ public:
 
 private:
 	inline void ReallyLock(unsigned int offset,
-											   unsigned int size,
-											   void** data,
-											   int flags, HRESULT* res = nullptr) {
+												 unsigned int size,
+												 void** data,
+												 int flags, HRESULT* res = nullptr) {
 		if (MeshMgr() && MeshMgr()->GetRenderDeviceThreadPool()) {
-	    CJob* job = MeshMgr()->GetRenderDeviceThreadPool()->QueueCall(
-	    	&CVertexBuffer::BufferLock,
+			CJob* job = MeshMgr()->GetRenderDeviceThreadPool()->QueueCall(
+				&CVertexBuffer::BufferLock,
 				m_pVB,
 				offset,
 				size,
@@ -253,7 +253,7 @@ private:
 #else
 		if (MeshMgr() && MeshMgr()->GetRenderDeviceThreadPool())
 		{
-		    MeshMgr()->GetRenderDeviceThreadPool()->QueueCall(&CVertexBuffer::BufferUnlock, m_pVB);
+				MeshMgr()->GetRenderDeviceThreadPool()->QueueCall(&CVertexBuffer::BufferUnlock, m_pVB);
 		}
 		else
 		{
@@ -280,50 +280,50 @@ private:
 #ifdef _X360
 	struct DynamicBufferAllocation_t
 	{
-		DWORD	m_Fence; //track whether this memory is safe to use again.
-		int	m_iStartOffset;
-		int	m_iEndOffset;
-		unsigned int m_iZPassIdx;	// The zpass during which this allocation was made
+		DWORD m_Fence; //track whether this memory is safe to use again.
+		int m_iStartOffset;
+		int m_iEndOffset;
+		unsigned int m_iZPassIdx; // The zpass during which this allocation was made
 	};
 
-	int						m_iNextBlockingPosition; // m_iNextBlockingPosition >= m_Position where another allocation is still in use.
-	unsigned char			*m_pAllocatedMemory;
-	int						m_iAllocationSize; //Total size of the ring buffer, usually more than what was asked for
-	IDirect3DVertexBuffer9	m_D3DVertexBuffer; //Only need one shared D3D header for our usage patterns.
+	int           m_iNextBlockingPosition; // m_iNextBlockingPosition >= m_Position where another allocation is still in use.
+	unsigned char     *m_pAllocatedMemory;
+	int           m_iAllocationSize; //Total size of the ring buffer, usually more than what was asked for
+	IDirect3DVertexBuffer9  m_D3DVertexBuffer; //Only need one shared D3D header for our usage patterns.
 	CUtlLinkedList<DynamicBufferAllocation_t> m_AllocationRing; //tracks what chunks of our memory are potentially still in use by D3D
 
-	GPUBufferHandle_t		m_GPUBufferHandle;	// Handle to a memory allocation within a shared physical memory pool (see CGPUBufferAllocator)
+	GPUBufferHandle_t   m_GPUBufferHandle;  // Handle to a memory allocation within a shared physical memory pool (see CGPUBufferAllocator)
 #endif
 
-	VertexFormat_t	m_VertexBufferFormat;		// yes, Vertex, only used for allocation tracking
-	int				m_nBufferSize;
-	int				m_Position;
-	int				m_VertexCount;
-	int				m_VertexSize;
-	DWORD			m_TheFVF;
-	byte			*m_pSysmemBuffer;
-	int				m_nSysmemBufferStartBytes;
+	VertexFormat_t  m_VertexBufferFormat;   // yes, Vertex, only used for allocation tracking
+	int       m_nBufferSize;
+	int       m_Position;
+	int       m_VertexCount;
+	int       m_VertexSize;
+	DWORD     m_TheFVF;
+	byte      *m_pSysmemBuffer;
+	int       m_nSysmemBufferStartBytes;
 
-	uint			m_nLockCount;
-	unsigned char	m_bDynamic : 1;
-	unsigned char	m_bLocked : 1;
-	unsigned char	m_bFlush : 1;
-	unsigned char	m_bExternalMemory : 1;
-	unsigned char	m_bSoftwareVertexProcessing : 1;
-	unsigned char	m_bLateCreateShouldDiscard : 1;
+	uint      m_nLockCount;
+	unsigned char m_bDynamic : 1;
+	unsigned char m_bLocked : 1;
+	unsigned char m_bFlush : 1;
+	unsigned char m_bExternalMemory : 1;
+	unsigned char m_bSoftwareVertexProcessing : 1;
+	unsigned char m_bLateCreateShouldDiscard : 1;
 
 #ifdef VPROF_ENABLED
-	int				m_Frame;
-	int				*m_pFrameCounter;
-	int				*m_pGlobalCounter;
+	int       m_Frame;
+	int       *m_pFrameCounter;
+	int       *m_pGlobalCounter;
 #endif
 
 #ifdef _DEBUG
-	static int		s_BufferCount;
+	static int    s_BufferCount;
 #endif
 
 #ifdef RECORDING
-	unsigned int	m_UID;
+	unsigned int  m_UID;
 #endif
 };
 
@@ -868,7 +868,7 @@ inline unsigned char* CVertexBuffer::Lock( int numVerts, int& baseVertexIndex )
 #else
 		if( m_bFlush )
 		{
-#			if ( defined( X360_BLOCK_ON_VB_FLUSH ) )
+#     if ( defined( X360_BLOCK_ON_VB_FLUSH ) )
 			{
 				if( m_AllocationRing.Count() )
 				{
@@ -878,20 +878,20 @@ inline unsigned char* CVertexBuffer::Lock( int numVerts, int& baseVertexIndex )
 					m_Position = 0;
 					m_iNextBlockingPosition = m_iAllocationSize;
 
-#				if ( defined( SPEW_VERTEX_BUFFER_STALLS ) )
+#       if ( defined( SPEW_VERTEX_BUFFER_STALLS ) )
 						if( Dx9Device()->IsFencePending( FinalFence ) )
 						{
 							float st = Plat_FloatTime();
-#				endif
+#       endif
 							Dx9Device()->BlockOnFence( FinalFence );
-#				if ( defined ( SPEW_VERTEX_BUFFER_STALLS ) )
+#       if ( defined ( SPEW_VERTEX_BUFFER_STALLS ) )
 							float dt = Plat_FloatTime() - st;
 							Warning( "Blocked FLUSHING dynamic vertex buffer for %f ms!\n", 1000.0 * dt );
 						}
-#				endif
+#       endif
 				}
 			}
-#			endif
+#     endif
 			m_bFlush = false;
 		}
 #endif
@@ -973,7 +973,7 @@ inline unsigned char* CVertexBuffer::Modify( bool bReadOnly, int firstVertex, in
 
 	// If this hits, m_pSysmemBuffer logic needs to be added to this code.
 	Assert( g_pShaderUtil->IsRenderThreadSafe() );
-	Assert( !m_pSysmemBuffer );		// if this hits, then we need to add code to handle it
+	Assert( !m_pSysmemBuffer );   // if this hits, then we need to add code to handle it
 
 	Assert( m_pVB && !m_bDynamic );
 
@@ -1054,7 +1054,7 @@ inline void CVertexBuffer::Unlock( int numVerts )
 		{
 			DynamicBufferAllocation_t LockData;
 			LockData.m_Fence = Dx9Device()->GetCurrentFence(); //This isn't the correct fence, but it's all we have access to for now and it'll provide marginal safety if something goes really wrong.
-			LockData.m_iStartOffset	= nLockOffset;
+			LockData.m_iStartOffset = nLockOffset;
 			LockData.m_iEndOffset = LockData.m_iStartOffset + nBufferSize;
 			LockData.m_iZPassIdx = ( Dx9Device()->GetDeviceState() & D3DDEVICESTATE_ZPASS_BRACKET ) ? ShaderAPI()->Get360ZPassCounter() : 0;
 
