@@ -1,6 +1,6 @@
 //========= Copyright Valve Corporation, All rights reserved. ============//
 //
-// Purpose: 
+// Purpose:
 //
 // $NoKeywords: $
 //
@@ -75,8 +75,8 @@ CShaderDeviceMgrDx8* g_pShaderDeviceMgrDx8 = &g_ShaderDeviceMgrDx8;
 
 #ifndef SHADERAPIDX10
 
-// In the shaderapidx10.dll, we use its version of IShaderDeviceMgr. 
-EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CShaderDeviceMgrDx8, IShaderDeviceMgr, 
+// In the shaderapidx10.dll, we use its version of IShaderDeviceMgr.
+EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CShaderDeviceMgrDx8, IShaderDeviceMgr,
 	SHADER_DEVICE_MGR_INTERFACE_VERSION, g_ShaderDeviceMgrDx8 )
 
 #endif
@@ -107,7 +107,7 @@ ConVar mat_debugalttab( "mat_debugalttab", "0", FCVAR_CHEAT );
 //
 //-----------------------------------------------------------------------------
 
-	
+
 //-----------------------------------------------------------------------------
 // constructor, destructor
 //-----------------------------------------------------------------------------
@@ -123,7 +123,7 @@ CShaderDeviceMgrDx8::CShaderDeviceMgrDx8()
 	m_pEndEvent = NULL;
 	m_pSetMarker = NULL;
 	m_pSetOptions = NULL;
-#endif	
+#endif
 }
 
 CShaderDeviceMgrDx8::~CShaderDeviceMgrDx8()
@@ -186,7 +186,7 @@ bool CShaderDeviceMgrDx8::Connect( CreateInterfaceFn factory )
 		g_ShaderDeviceUsingD3D9Ex = false;
 		m_pD3D = Direct3DCreate9(D3D_SDK_VERSION);
 	}
-	
+
 	mat_supports_d3d9ex.SetValue( bD3D9ExAvailable ? 1 : 0 );
 #else
 	#if defined( DO_DX9_HOOK )
@@ -279,16 +279,16 @@ InitReturnVal_t CShaderDeviceMgrDx8::Init( )
 void CShaderDeviceMgrDx8::Shutdown( )
 {
 	LOCK_SHADERAPI();
-	
+
 // FIXME: Make PIX work
-	
+
 // BeginPIXEvent( PIX_VALVE_ORANGE, "Shutdown" );
-	
+
 	if ( g_pShaderAPI )
 	{
 		g_pShaderAPI->OnDeviceShutdown();
 	}
-	
+
 	if ( g_pShaderDevice )
 	{
 		g_pShaderDevice->ShutdownDevice();
@@ -297,7 +297,7 @@ void CShaderDeviceMgrDx8::Shutdown( )
 
 //	EndPIXEvent();
 
-	
+
 }
 
 
@@ -432,7 +432,7 @@ void CShaderDeviceMgrDx8::CheckVendorDependentShadowMappingSupport( HardwareCaps
 				if ( !bToolsMode )	// Tools will continue on and try for 24 bit...
 					return;
 			}
-			
+
 			if ( m_pD3D->CheckDeviceFormat( nAdapter, DX8_DEVTYPE, D3DFMT_X8R8G8B8, D3DUSAGE_DEPTHSTENCIL, D3DRTYPE_TEXTURE, D3DFMT_D24S8 ) == S_OK )
 			{
 				pCaps->m_ShadowDepthTextureFormat = IMAGE_FORMAT_NV_DST24;
@@ -462,7 +462,7 @@ void CShaderDeviceMgrDx8::CheckVendorDependentShadowMappingSupport( HardwareCaps
 				if ( !bToolsMode )	// Tools will continue on and try for 24 bit...
 					return;
 			}
-			
+
 			if ( m_pD3D->CheckDeviceFormat( nAdapter, DX8_DEVTYPE, D3DFMT_X8R8G8B8, D3DUSAGE_DEPTHSTENCIL, D3DRTYPE_TEXTURE, ATIFMT_D24S8 ) == S_OK )
 			{
 				pCaps->m_ShadowDepthTextureFormat = IMAGE_FORMAT_ATI_DST24;
@@ -702,7 +702,7 @@ bool CShaderDeviceMgrDx8::ComputeCapsFromD3D( HardwareCaps_t *pCaps, int nAdapte
 		pCaps->m_bSoftwareVertexProcessing = true;
 	}
 
-	// Set mat_forcedynamic if software vertex processing since the software vp pipe has 
+	// Set mat_forcedynamic if software vertex processing since the software vp pipe has
 	// problems with sparse vertex buffers (it transforms the whole thing.)
 	if ( pCaps->m_bSoftwareVertexProcessing )
 	{
@@ -769,11 +769,11 @@ bool CShaderDeviceMgrDx8::ComputeCapsFromD3D( HardwareCaps_t *pCaps, int nAdapte
 	pCaps->m_bCanStretchRectFromTextures = false;
 #endif
 
-	pCaps->m_nMaxAnisotropy = pCaps->m_bSupportsAnisotropicFiltering ? caps.MaxAnisotropy : 1; 
+	pCaps->m_nMaxAnisotropy = pCaps->m_bSupportsAnisotropicFiltering ? caps.MaxAnisotropy : 1;
 
 	pCaps->m_SupportsCubeMaps = ( caps.TextureCaps & D3DPTEXTURECAPS_CUBEMAP ) ? true : false;
-	pCaps->m_SupportsNonPow2Textures = 
-		( !( caps.TextureCaps & D3DPTEXTURECAPS_POW2 ) || 
+	pCaps->m_SupportsNonPow2Textures =
+		( !( caps.TextureCaps & D3DPTEXTURECAPS_POW2 ) ||
 		( caps.TextureCaps & D3DPTEXTURECAPS_NONPOW2CONDITIONAL ) );
 
 	Assert( caps.TextureCaps & D3DPTEXTURECAPS_PROJECTED );
@@ -887,7 +887,7 @@ bool CShaderDeviceMgrDx8::ComputeCapsFromD3D( HardwareCaps_t *pCaps, int nAdapte
 		// so this will mean that the engine will always ask for user clip planes.
 		// this will misbehave under ARB mode, since ARB shaders won't respect that state.
 		// it's difficult to make this fluid without teaching the engine about a cap that could change during run.
-		
+
 		pCaps->m_MaxUserClipPlanes = 0;
 	}
 
@@ -903,9 +903,9 @@ bool CShaderDeviceMgrDx8::ComputeCapsFromD3D( HardwareCaps_t *pCaps, int nAdapte
 	// using #if because we're referencing fields in the RHS which don't exist in Windows headers for the caps9 struct
 	pCaps->m_FakeSRGBWrite = caps.FakeSRGBWrite != 0;
 	pCaps->m_CanDoSRGBReadFromRTs = caps.CanDoSRGBReadFromRTs != 0;
-	pCaps->m_bSupportsGLMixedSizeTargets = caps.MixedSizeTargets != 0; 	
+	pCaps->m_bSupportsGLMixedSizeTargets = caps.MixedSizeTargets != 0;
 #endif
-	
+
 	// Query for SRGB support as needed for our DX 9 stuff
 	if ( IsPC() || !IsX360() )
 	{
@@ -943,19 +943,19 @@ bool CShaderDeviceMgrDx8::ComputeCapsFromD3D( HardwareCaps_t *pCaps, int nAdapte
 	pCaps->m_nMaxVertexTextureDimension = pCaps->m_bSupportsVertexTextures ? 4096 : 0;
 
 	// Does the device support filterable int16 textures?
-	bool bSupportsInteger16Textures = 		
+	bool bSupportsInteger16Textures =
 		( D3D()->CheckDeviceFormat( nAdapter, DX8_DEVTYPE,
 		D3DFMT_X8R8G8B8, D3DUSAGE_QUERY_FILTER,
 		D3DRTYPE_TEXTURE, D3DFMT_A16B16G16R16 ) == S_OK );
 
 	// Does the device support filterable fp16 textures?
-	bool bSupportsFloat16Textures = 		
+	bool bSupportsFloat16Textures =
 		( D3D()->CheckDeviceFormat( nAdapter, DX8_DEVTYPE,
 		D3DFMT_X8R8G8B8, D3DUSAGE_QUERY_FILTER,
 		D3DRTYPE_TEXTURE, D3DFMT_A16B16G16R16F ) == S_OK );
 
 	// Does the device support blendable fp16 render targets?
-	bool bSupportsFloat16RenderTargets = 		
+	bool bSupportsFloat16RenderTargets =
 		( D3D()->CheckDeviceFormat( nAdapter, DX8_DEVTYPE,
 		D3DFMT_X8R8G8B8, D3DUSAGE_QUERY_POSTPIXELSHADER_BLENDING | D3DUSAGE_RENDERTARGET,
 		D3DRTYPE_TEXTURE, D3DFMT_A16B16G16R16F ) == S_OK );
@@ -998,7 +998,7 @@ bool CShaderDeviceMgrDx8::ComputeCapsFromD3D( HardwareCaps_t *pCaps, int nAdapte
 				}
 			}
 			else
-			{	
+			{
 				// On G80 and later, always specify in linear space
 				if ( pCaps->m_bSupportsFloat32RenderTargets )
 				{
@@ -1027,7 +1027,7 @@ bool CShaderDeviceMgrDx8::ComputeCapsFromD3D( HardwareCaps_t *pCaps, int nAdapte
 				pCaps->m_bDX10Card = pCaps->m_SupportsShaderModel_3_0 &&
 				( pCaps->m_MaxVertexShader30InstructionSlots > 1024 ) &&
 				( pCaps->m_MaxPixelShader30InstructionSlots > 512 ) ;
-				
+
 				// On ATI, DX10 card means DX10 blending
 				pCaps->m_bDX10Blending = pCaps->m_bDX10Card;
 
@@ -1072,7 +1072,7 @@ bool CShaderDeviceMgrDx8::ComputeCapsFromD3D( HardwareCaps_t *pCaps, int nAdapte
 		//		(caps.PrimitiveMiscCaps & D3DPMISCCAPS_SEPARATEALPHABLEND) &&
 		bSupportsFloat16Textures &&
 		bSupportsFloat16RenderTargets &&
-		pCaps->m_SupportsSRGB && 
+		pCaps->m_SupportsSRGB &&
 		!IsX360();
 
 	pCaps->m_MaxHDRType = HDR_TYPE_NONE;
@@ -1081,7 +1081,7 @@ bool CShaderDeviceMgrDx8::ComputeCapsFromD3D( HardwareCaps_t *pCaps, int nAdapte
 	else
 		if ( bSupportsIntegerHDR )
 			pCaps->m_MaxHDRType = HDR_TYPE_INTEGER;
-		
+
 	if ( bSupportsFloatHDR  && ( mat_hdr_level.GetInt() == 3 ) )
 	{
 		pCaps->m_HDRType = HDR_TYPE_FLOAT;
@@ -1194,7 +1194,7 @@ void CShaderDeviceMgrDx8::ComputeDXSupportLevel( HardwareCaps_t &caps )
 		return;
 	}
 
-	// NOTE: sRGB is currently required for DX90 because it isn't doing 
+	// NOTE: sRGB is currently required for DX90 because it isn't doing
 	// gamma correctly if that feature doesn't exist
 	if ( caps.m_SupportsVertexShaders_2_0 && caps.m_SupportsPixelShaders_2_0 && caps.m_SupportsSRGB )
 	{
@@ -1225,7 +1225,7 @@ void CShaderDeviceMgrDx8::ComputeDXSupportLevel( HardwareCaps_t &caps )
 		return;
 	}
 
-	Assert( 0 ); 
+	Assert( 0 );
 	// we don't support this!
 	caps.m_nMaxDXSupportLevel = 50;
 }
@@ -1269,7 +1269,7 @@ bool CShaderDeviceMgrDx8::SetAdapter( int nAdapter, int nAdapterFlags )
 	//	g_pShaderDeviceDx8->m_bReadPixelsEnabled = (nAdapterFlags & MATERIAL_INIT_READ_PIXELS_ENABLED) != 0;
 
 	// Set up hardware information for this adapter...
-	g_pShaderDeviceDx8->m_DeviceType = (nAdapterFlags & MATERIAL_INIT_REFERENCE_RASTERIZER) ? 
+	g_pShaderDeviceDx8->m_DeviceType = (nAdapterFlags & MATERIAL_INIT_REFERENCE_RASTERIZER) ?
 		D3DDEVTYPE_REF : D3DDEVTYPE_HAL;
 
 	g_pShaderDeviceDx8->m_DisplayAdapter = nAdapter;
@@ -1641,7 +1641,7 @@ void CShaderDeviceDx8::SetPresentParameters( void* hWnd, int nAdapter, const Sha
 	m_PresentParameters.SwapEffect = info.m_bUsingMultipleWindows ? D3DSWAPEFFECT_COPY : D3DSWAPEFFECT_DISCARD;
 
 	// for 360, we want to create it ourselves for hierarchical z support
-	m_PresentParameters.EnableAutoDepthStencil = IsX360() ? FALSE : TRUE; 
+	m_PresentParameters.EnableAutoDepthStencil = IsX360() ? FALSE : TRUE;
 
 	// What back-buffer format should we use?
 	ImageFormat backBufferFormat = FindNearestSupportedBackBufferFormat( nAdapter,
@@ -1659,7 +1659,7 @@ void CShaderDeviceDx8::SetPresentParameters( void* hWnd, int nAdapter, const Sha
 #else
 	D3DFORMAT nDepthFormat = m_bUsingStencil ? D3DFMT_D24S8 : D3DFMT_D24X8;
 #endif
-	m_PresentParameters.AutoDepthStencilFormat = FindNearestSupportedDepthFormat( 
+	m_PresentParameters.AutoDepthStencilFormat = FindNearestSupportedDepthFormat(
 		nAdapter, m_AdapterFormat, backBufferFormat, nDepthFormat );
 	m_PresentParameters.hDeviceWindow = (VD3DHWND)hWnd;
 
@@ -1705,7 +1705,7 @@ void CShaderDeviceDx8::SetPresentParameters( void* hWnd, int nAdapter, const Sha
 			m_PresentParameters.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
 		}
 
-		m_PresentParameters.FullScreen_RefreshRateInHz = info.m_DisplayMode.m_nRefreshRateDenominator ? 
+		m_PresentParameters.FullScreen_RefreshRateInHz = info.m_DisplayMode.m_nRefreshRateDenominator ?
 			info.m_DisplayMode.m_nRefreshRateNumerator / info.m_DisplayMode.m_nRefreshRateDenominator : D3DPRESENT_RATE_DEFAULT;
 
 #if defined( _X360 )
@@ -1760,7 +1760,7 @@ void CShaderDeviceDx8::SetPresentParameters( void* hWnd, int nAdapter, const Sha
 			}
 			else
 			{
-				// When in resizing windowed mode, 
+				// When in resizing windowed mode,
 				// we want to allocate enough memory to deal with any resizing...
 				m_PresentParameters.BackBufferWidth = mode.m_nWidth;
 				m_PresentParameters.BackBufferHeight = mode.m_nHeight;
@@ -1786,8 +1786,8 @@ void CShaderDeviceDx8::SetPresentParameters( void* hWnd, int nAdapter, const Sha
 		if ( ( info.m_nAASamples == 16 ) && ( adapterCaps.m_VendorID == VENDORID_NVIDIA ) )
 		{
 			multiSampleType = ComputeMultisampleType(4);
-			hr = D3D()->CheckDeviceMultiSampleType( nAdapter, DX8_DEVTYPE, 
-				m_PresentParameters.BackBufferFormat, m_PresentParameters.Windowed, 
+			hr = D3D()->CheckDeviceMultiSampleType( nAdapter, DX8_DEVTYPE,
+				m_PresentParameters.BackBufferFormat, m_PresentParameters.Windowed,
 				multiSampleType, &nQualityLevel );						// 4x at highest quality level
 
 			if ( !FAILED( hr ) && ( nQualityLevel == 16 ) )
@@ -1801,8 +1801,8 @@ void CShaderDeviceDx8::SetPresentParameters( void* hWnd, int nAdapter, const Sha
 		}
 		else	// Regular MSAA on any old vendor
 		{
-			hr = D3D()->CheckDeviceMultiSampleType( nAdapter, DX8_DEVTYPE, 
-				m_PresentParameters.BackBufferFormat, m_PresentParameters.Windowed, 
+			hr = D3D()->CheckDeviceMultiSampleType( nAdapter, DX8_DEVTYPE,
+				m_PresentParameters.BackBufferFormat, m_PresentParameters.Windowed,
 				multiSampleType, &nQualityLevel );
 
 			nQualityLevel = 0;
@@ -1828,7 +1828,7 @@ void CShaderDeviceDx8::SetPresentParameters( void* hWnd, int nAdapter, const Sha
 bool CShaderDeviceDx8::InitDevice( void* hwnd, int nAdapter, const ShaderDeviceInfo_t &info )
 {
 	//Debugger();
-	
+
 	// good place to run some self tests.
 	//#if OSX
 	//{
@@ -1836,7 +1836,7 @@ bool CShaderDeviceDx8::InitDevice( void* hwnd, int nAdapter, const ShaderDeviceI
 	//	GLMgrSelfTests();
 	//}
 	//#endif
-	
+
 	// windowed
 	if ( !CreateD3DDevice( (VD3DHWND)hwnd, nAdapter, info ) )
 		return false;
@@ -1888,7 +1888,7 @@ int CShaderDeviceDx8::GetCurrentAdapter() const
 //-----------------------------------------------------------------------------
 // Returns the current adapter in use
 //-----------------------------------------------------------------------------
-char *CShaderDeviceDx8::GetDisplayDeviceName() 
+char *CShaderDeviceDx8::GetDisplayDeviceName()
 {
 	if( m_sDisplayDeviceName.IsEmpty() )
 	{
@@ -1909,7 +1909,7 @@ char *CShaderDeviceDx8::GetDisplayDeviceName()
 
 
 //-----------------------------------------------------------------------------
-// Use this to spew information about the 3D layer 
+// Use this to spew information about the 3D layer
 //-----------------------------------------------------------------------------
 void CShaderDeviceDx8::SpewDriverInfo() const
 {
@@ -1927,15 +1927,15 @@ void CShaderDeviceDx8::SpewDriverInfo() const
 	Dx9Device()->GetDeviceCaps( &caps );
 	hr = D3D()->GetAdapterIdentifier( m_nAdapter, D3DENUM_WHQL_LEVEL, &ident );
 
-	Warning("Shader API Driver Info:\n\nDriver : %s Version : %lld\n", 
+	Warning("Shader API Driver Info:\n\nDriver : %s Version : %lld\n",
 		ident.Driver, ident.DriverVersion.QuadPart );
 	Warning("Driver Description :  %s\n", ident.Description );
-	Warning("Chipset version %d %d %d %d\n\n", 
+	Warning("Chipset version %d %d %d %d\n\n",
 		ident.VendorId, ident.DeviceId, ident.SubSysId, ident.Revision );
 
 	ShaderDisplayMode_t mode;
 	g_pShaderDeviceMgr->GetCurrentModeInfo( &mode, m_nAdapter );
-	Warning("Display mode : %d x %d (%s)\n", 
+	Warning("Display mode : %d x %d (%s)\n",
 		mode.m_nWidth, mode.m_nHeight, ImageLoader::GetName( mode.m_Format ) );
 	Warning("Vertex Shader Version : %d.%d Pixel Shader Version : %d.%d\n",
 		(caps.VertexShaderVersion >> 8) & 0xFF, caps.VertexShaderVersion & 0xFF,
@@ -1982,11 +1982,11 @@ void CShaderDeviceDx8::SpewDriverInfo() const
 		(caps.RasterCaps & D3DPRASTERCAPS_ZTEST) ? " Y " : "*N*" );
 
 	Warning("Size of Texture Memory : %d kb\n", g_pHardwareConfig->Caps().m_TextureMemorySize / 1024 );
-	Warning("Max Texture Dimensions : %d x %d\n", 
+	Warning("Max Texture Dimensions : %d x %d\n",
 		caps.MaxTextureWidth, caps.MaxTextureHeight );
 	if (caps.MaxTextureAspectRatio != 0)
 		Warning("Max Texture Aspect Ratio : *%d*\n", caps.MaxTextureAspectRatio );
-	Warning("Max Textures : %d Max Stages : %d\n", 
+	Warning("Max Textures : %d Max Stages : %d\n",
 		caps.MaxSimultaneousTextures, caps.MaxTextureBlendStages );
 
 	Warning("\nTexture Caps :\n");
@@ -2010,7 +2010,7 @@ void CShaderDeviceDx8::SpewDriverInfo() const
 	Warning( "m_SupportsPixelShaders_2_0: %s\n", g_pHardwareConfig->Caps().m_SupportsPixelShaders_2_0 ? "yes" : "no" );
 	Warning( "m_SupportsPixelShaders_2_b: %s\n", g_pHardwareConfig->Caps().m_SupportsPixelShaders_2_b ? "yes" : "no" );
 	Warning( "m_SupportsShaderModel_3_0: %s\n", g_pHardwareConfig->Caps().m_SupportsShaderModel_3_0 ? "yes" : "no" );
-	
+
 	switch( g_pHardwareConfig->Caps().m_SupportsCompressedTextures )
 	{
 	case COMPRESSED_TEXTURES_ON:
@@ -2107,11 +2107,11 @@ void CShaderDeviceDx8::DetectQuerySupport( IDirect3DDevice9 *pD3DDevice )
 
 	// Detect whether query is supported by creating and releasing:
 	HRESULT hr = pD3DDevice->CreateQuery( D3DQUERYTYPE_EVENT, &pQueryObject );
-	if ( !FAILED(hr) && pQueryObject ) 
+	if ( !FAILED(hr) && pQueryObject )
 	{
 		pQueryObject->Release();
 		m_DeviceSupportsCreateQuery = 1;
-	} 
+	}
 	else
 	{
 		m_DeviceSupportsCreateQuery = 0;
@@ -2213,7 +2213,7 @@ IDirect3DDevice9* CShaderDeviceDx8::InvokeCreateDevice( void* hWnd, int nAdapter
 #if 0	// with the changes for opengl to enable threading, we no longer need the d3d device to have threading guards
 #ifndef _X360
 	// Create the device with multi-threaded safeguards if we're using mat_queue_mode 2.
-	// The logic to enable multithreaded rendering happens well after the device has been created, 
+	// The logic to enable multithreaded rendering happens well after the device has been created,
 	// so we replicate some of that logic here.
 	ConVarRef mat_queue_mode( "mat_queue_mode" );
 	if ( mat_queue_mode.GetInt() == 2 ||
@@ -2224,6 +2224,7 @@ IDirect3DDevice9* CShaderDeviceDx8::InvokeCreateDevice( void* hWnd, int nAdapter
 	}
 #endif
 #endif
+	deviceCreationFlags |= D3DCREATE_MULTITHREADED;
 
 #ifdef ENABLE_NULLREF_DEVICE_SUPPORT
 	devType =  CommandLine()->FindParm( "-nulldevice" ) ? D3DDEVTYPE_NULLREF: devType;
@@ -2249,7 +2250,7 @@ IDirect3DDevice9* CShaderDeviceDx8::InvokeCreateDevice( void* hWnd, int nAdapter
 	// This will cause us to use less buffers...
 	if ( m_PresentParameters.Windowed )
 	{
-		m_PresentParameters.SwapEffect = D3DSWAPEFFECT_COPY; 
+		m_PresentParameters.SwapEffect = D3DSWAPEFFECT_COPY;
 		m_PresentParameters.BackBufferCount = 0;
 		hr = D3D()->CreateDevice( nAdapter, devType,
 			(VD3DHWND)hWnd, deviceCreationFlags, &m_PresentParameters, &pD3DDevice );
@@ -2342,20 +2343,20 @@ bool CShaderDeviceDx8::CreateD3DDevice( void* pHWnd, int nAdapter, const ShaderD
 
 		// Depth is immediately after the back buffer in EDRAM
 		// allocate the hierarchical z tiles at the end of the area so all other allocations can trivially allocate at 0
-		DepthStencilParams.Base = XGSurfaceSize( 
+		DepthStencilParams.Base = XGSurfaceSize(
 			m_PresentParameters.BackBufferWidth,
-			m_PresentParameters.BackBufferHeight, 
-			m_PresentParameters.BackBufferFormat, 
+			m_PresentParameters.BackBufferHeight,
+			m_PresentParameters.BackBufferFormat,
 			m_PresentParameters.MultiSampleType );
 		DepthStencilParams.ColorExpBias = 0;
 		DepthStencilParams.HierarchicalZBase = GPU_HIERARCHICAL_Z_TILES - XGHierarchicalZSize( m_PresentParameters.BackBufferWidth, m_PresentParameters.BackBufferHeight, m_PresentParameters.MultiSampleType );
 
 		IDirect3DSurface *pDepthStencilSurface = NULL;
-		hr = Dx9Device()->CreateDepthStencilSurface( 
-			m_PresentParameters.BackBufferWidth, 
-			m_PresentParameters.BackBufferHeight, 
+		hr = Dx9Device()->CreateDepthStencilSurface(
+			m_PresentParameters.BackBufferWidth,
+			m_PresentParameters.BackBufferHeight,
 			m_PresentParameters.AutoDepthStencilFormat,
-			m_PresentParameters.MultiSampleType, 
+			m_PresentParameters.MultiSampleType,
 			m_PresentParameters.MultiSampleQuality,
 			TRUE,
 			&pDepthStencilSurface,
@@ -2437,7 +2438,7 @@ void CShaderDeviceDx8::AllocFrameSyncTextureObject()
 	FreeFrameSyncTextureObject();
 
 	// Create a tiny managed texture.
-	HRESULT hr = Dx9Device()->CreateTexture( 
+	HRESULT hr = Dx9Device()->CreateTexture(
 		1, 1,	// width, height
 		0,		// levels
 		D3DUSAGE_DYNAMIC,	// usage
@@ -2543,7 +2544,7 @@ void CShaderDeviceDx8::FreeFrameSyncObjects( void )
 				} while ( hr == S_FALSE );
 			}
 #ifdef DBGFLAG_ASSERT
-			int nRetVal = 
+			int nRetVal =
 #endif
 			m_pFrameSyncQueryObject[i]->Release();
 			Assert( nRetVal == 0 );
@@ -2659,7 +2660,7 @@ void CShaderDeviceDx8::ReleaseResources()
 {
 	if ( !ThreadOwnsDevice() || !ThreadInMainThread() )
 	{
-		// Set our resources as not being released yet.  
+		// Set our resources as not being released yet.
 		// We reset this in two places since release resources can be called without a call to TryDeviceReset.
 		m_bResourcesReleased = false;
 		ShaderUtil()->OnThreadEvent( SHADER_THREAD_RELEASE_RESOURCES );
@@ -2769,7 +2770,7 @@ void CShaderDeviceDx8::ReacquireResourcesInternal( bool bResetState, bool bForce
 //-----------------------------------------------------------------------------
 // Changes the window size
 //-----------------------------------------------------------------------------
-bool CShaderDeviceDx8::ResizeWindow( const ShaderDeviceInfo_t &info ) 
+bool CShaderDeviceDx8::ResizeWindow( const ShaderDeviceInfo_t &info )
 {
 	if ( IsX360() )
 		return false;
@@ -2824,7 +2825,7 @@ void CShaderDeviceDx8::CheckDeviceLost( bool bOtherAppInitializing )
 {
 #if !defined( _X360 )
 	// FIXME: We could also queue up if WM_SIZE changes and look at that
-	// but that seems to only make sense if we have resizable windows where 
+	// but that seems to only make sense if we have resizable windows where
 	// we do *not* allocate buffers as large as the entire current video mode
 	// which we're not doing
 #ifdef _WIN32
@@ -2841,14 +2842,14 @@ void CShaderDeviceDx8::CheckDeviceLost( bool bOtherAppInitializing )
 		MarkDeviceLost();
 	}
 #endif
-	
+
 	HRESULT hr = D3D_OK;
 #if defined(IS_WINDOWS_PC) && defined(SHADERAPIDX9)
 	if ( g_ShaderDeviceUsingD3D9Ex && m_DeviceState == DEVICE_STATE_OK )
 	{
 		// Steady state - PresentEx return value will mark us lost if necessary.
 		// We do not care if we are minimized in this state.
-		m_bIsMinimized = false; 
+		m_bIsMinimized = false;
 	}
 	else
 #endif
@@ -2875,7 +2876,7 @@ void CShaderDeviceDx8::CheckDeviceLost( bool bOtherAppInitializing )
 
 			// We were ok, now we're not. Release resources
 			ReleaseResources();
-			m_DeviceState = DEVICE_STATE_LOST_DEVICE; 
+			m_DeviceState = DEVICE_STATE_LOST_DEVICE;
 		}
 		else if ( bOtherAppInitializing )
 		{
@@ -2884,7 +2885,7 @@ void CShaderDeviceDx8::CheckDeviceLost( bool bOtherAppInitializing )
 
 			// We were ok, now we're not. Release resources
 			ReleaseResources();
-			m_DeviceState = DEVICE_STATE_OTHER_APP_INIT; 
+			m_DeviceState = DEVICE_STATE_OTHER_APP_INIT;
 		}
 	}
 
@@ -2895,7 +2896,7 @@ void CShaderDeviceDx8::CheckDeviceLost( bool bOtherAppInitializing )
 		// We can only try to reset if we're not minimized and not lost
 		if ( !m_bIsMinimized && (hr != D3DERR_DEVICELOST) )
 		{
-			m_DeviceState = DEVICE_STATE_NEEDS_RESET; 
+			m_DeviceState = DEVICE_STATE_NEEDS_RESET;
 		}
 	}
 
@@ -2904,7 +2905,7 @@ void CShaderDeviceDx8::CheckDeviceLost( bool bOtherAppInitializing )
 	{
 		if ( ( hr == D3DERR_DEVICELOST ) || m_bIsMinimized )
 		{
-			m_DeviceState = DEVICE_STATE_LOST_DEVICE; 
+			m_DeviceState = DEVICE_STATE_LOST_DEVICE;
 		}
 		else
 		{
@@ -2930,11 +2931,11 @@ void CShaderDeviceDx8::CheckDeviceLost( bool bOtherAppInitializing )
 	{
 		if ( ( hr != D3D_OK ) || m_bIsMinimized )
 		{
-			m_DeviceState = DEVICE_STATE_LOST_DEVICE; 
+			m_DeviceState = DEVICE_STATE_LOST_DEVICE;
 		}
 		else if ( !bOtherAppInitializing )
 		{
-			m_DeviceState = DEVICE_STATE_OK; 
+			m_DeviceState = DEVICE_STATE_OK;
 
 			// We were bad, now we're ok. Restore resources and reset render state.
 			ReacquireResourcesInternal( true, true, "OtherAppInit" );
@@ -2963,49 +2964,49 @@ bool CShaderDeviceDx8::AllocNonInteractiveRefreshObjects()
 {
 #if defined( _X360 )
 
-	const char *strVertexShaderProgram = 
-		" float4x4 matWVP : register(c0);"  
-		" struct VS_IN"  
-		" {" 
+	const char *strVertexShaderProgram =
+		" float4x4 matWVP : register(c0);"
+		" struct VS_IN"
+		" {"
 		" float4 ObjPos : POSITION;"
 		" float2 TexCoord : TEXCOORD;"
-		" };" 
-		" struct VS_OUT" 
-		" {" 
-		" float4 ProjPos : POSITION;" 
+		" };"
+		" struct VS_OUT"
+		" {"
+		" float4 ProjPos : POSITION;"
 		" float2 TexCoord : TEXCOORD;"
-		" };"  
-		" VS_OUT main( VS_IN In )"  
-		" {"  
-		" VS_OUT Out; "  
+		" };"
+		" VS_OUT main( VS_IN In )"
+		" {"
+		" VS_OUT Out; "
 		" Out.ProjPos = mul( matWVP, In.ObjPos );"
 		" Out.TexCoord = In.TexCoord;"
-		" return Out;"  
+		" return Out;"
 		" }";
 
-	const char *strPixelShaderProgram = 
+	const char *strPixelShaderProgram =
 		" struct PS_IN"
 		" {"
 		" float2 TexCoord : TEXCOORD;"
 		" };"
 		" sampler detail : register( s0 );"
-		" float4 main( PS_IN In ) : COLOR"  
-		" {"  
+		" float4 main( PS_IN In ) : COLOR"
+		" {"
 		" return tex2D( detail, In.TexCoord );"
-		" }"; 
+		" }";
 
-	const char *strPixelShaderProgram2 = 
+	const char *strPixelShaderProgram2 =
 		" struct PS_IN"
 		" {"
 		" float2 TexCoord : TEXCOORD;"
 		" };"
 		" sampler detail : register( s0 );"
-		" float4 main( PS_IN In ) : COLOR"  
-		" {"  
+		" float4 main( PS_IN In ) : COLOR"
+		" {"
 		" return tex2D( detail, In.TexCoord );"
-		" }"; 
+		" }";
 
-	const char *strPixelShaderProgram3 = 
+	const char *strPixelShaderProgram3 =
 		" struct PS_IN"
 		" {"
 		" float2 TexCoord : TEXCOORD;"
@@ -3051,14 +3052,14 @@ bool CShaderDeviceDx8::AllocNonInteractiveRefreshObjects()
 		"	return fl360GammaValue;"
 		"}"
 		" sampler detail : register( s0 );"
-		" float4 main( PS_IN In ) : COLOR"  
-		" {"  
+		" float4 main( PS_IN In ) : COLOR"
+		" {"
 		"	float4 vTextureColor = tex2D( detail, In.TexCoord );"
-		"	vTextureColor.r = X360LinearToGamma( SrgbGammaToLinear( vTextureColor.r ) );" 
+		"	vTextureColor.r = X360LinearToGamma( SrgbGammaToLinear( vTextureColor.r ) );"
 		"	vTextureColor.g = X360LinearToGamma( SrgbGammaToLinear( vTextureColor.g ) );"
 		"	vTextureColor.b = X360LinearToGamma( SrgbGammaToLinear( vTextureColor.b ) );"
 		"	return vTextureColor;"
-		" }"; 
+		" }";
 
 	D3DVERTEXELEMENT9 VertexElements[4] =
 	{
@@ -3121,9 +3122,9 @@ bool CShaderDeviceDx8::AllocNonInteractiveRefreshObjects()
 
 	// Create a vertex declaration from the element descriptions.
 	Dx9Device()->CreateVertexDeclaration( VertexElements, &m_NonInteractiveRefresh.m_pVertexDecl );
-	
-#endif	
-	
+
+#endif
+
 	return true;
 }
 
@@ -3207,7 +3208,7 @@ void CShaderDeviceDx8::EnableNonInteractiveMode( MaterialNonInteractiveMode_t mo
 //	Msg( "Time elapsed: %.3f Peak %.3f Ave %.5f Count %d Count Above %d\n", Plat_FloatTime() - m_NonInteractiveRefresh.m_flStartTime,
 //		m_NonInteractiveRefresh.m_flPeakDt, m_NonInteractiveRefresh.m_flTotalDt / m_NonInteractiveRefresh.m_nSamples, m_NonInteractiveRefresh.m_nSamples, m_NonInteractiveRefresh.m_nCountAbove66 );
 
-	m_NonInteractiveRefresh.m_flStartTime = m_NonInteractiveRefresh.m_flLastPresentTime = 
+	m_NonInteractiveRefresh.m_flStartTime = m_NonInteractiveRefresh.m_flLastPresentTime =
 		m_NonInteractiveRefresh.m_flLastPacifierTime = Plat_FloatTime();
 	m_NonInteractiveRefresh.m_flPeakDt = 0.0f;
 	m_NonInteractiveRefresh.m_flTotalDt = 0.0f;
@@ -3447,13 +3448,13 @@ void CShaderDeviceDx8::Present()
 		if ( hr == D3DERR_DRIVERINTERNALERROR )
 		{
 			/*	Usually this bug means that the driver has run out of internal video
-				memory, due to leaking it slowly over several application restarts. 
-				As of summer 2007, IE in particular seemed to leak a lot of driver 
+				memory, due to leaking it slowly over several application restarts.
+				As of summer 2007, IE in particular seemed to leak a lot of driver
 				memory for every image context it created in the browser window. A
 				reboot clears out the leaked memory and will generally allow the game
-				to be run again; occasionally (but not frequently) it's necessary to 
-				reduce video settings in the game as well to run. But, this is too 
-				fine a distinction to explain in a dialog, so place the guilt on the 
+				to be run again; occasionally (but not frequently) it's necessary to
+				reduce video settings in the game as well to run. But, this is too
+				fine a distinction to explain in a dialog, so place the guilt on the
 				user and ask them to reduce video settings regardless.
 			*/
 
