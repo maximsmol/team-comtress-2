@@ -258,6 +258,8 @@ ConVar tf_halloween_giant_health_scale( "tf_halloween_giant_health_scale", "10",
 ConVar tf_grapplinghook_los_force_detach_time( "tf_grapplinghook_los_force_detach_time", "1", FCVAR_CHEAT );
 ConVar tf_powerup_max_charge_time( "tf_powerup_max_charge_time", "30", FCVAR_CHEAT );
 
+ConVar tf_unlag_teammates( "tf_unlag_teammates", "1", FCVAR_NOTIFY, "Controls lag compensation for teammates. 0: Disable, 1: Enable, 2: Melee weapons only" );
+
 extern ConVar tf_powerup_mode;
 extern ConVar tf_mvm_buybacks_method;
 extern ConVar tf_mvm_buybacks_per_wave;
@@ -10903,7 +10905,7 @@ void CTFPlayer::Event_KilledOther( CBaseEntity *pVictim, const CTakeDamageInfo &
 
 		// Halloween Death Ghosts
 		// Check the weapon I used to kill with this player and if it has my desired attribute
-		if ( TF_IsHolidayActive( kHoliday_HalloweenOrFullMoon ) )
+		if ( true || TF_IsHolidayActive( kHoliday_HalloweenOrFullMoon ) )
 		{
 			int iHalloweenDeathGhosts = 0;
 			CALL_ATTRIB_HOOK_INT_ON_OTHER( pWeapon, iHalloweenDeathGhosts, halloween_death_ghosts );
@@ -15059,7 +15061,7 @@ void CTFPlayer::FeignDeath( const CTakeDamageInfo& info )
 
 //-----------------------------------------------------------------------------
 // Purpose: Create a ragdoll entity for feign death. Does not hide the player.
-// Creates an entirely seperate ragdoll that isn't used for client death cam or other real death stuff.
+// Creates an entirely separate ragdoll that isn't used for client death cam or other real death stuff.
 //-----------------------------------------------------------------------------
 void CTFPlayer::CreateFeignDeathRagdoll( const CTakeDamageInfo& info, bool bGib, bool bBurning, bool bDisguised )
 {
@@ -17028,7 +17030,9 @@ void CTFPlayer::Taunt( taunts_t iTauntIndex, int iTauntConcept )
 				if ( m_Shared.GetRageMeter() >= 100.f )
 				{
 					m_Shared.m_bRageDraining = true;
-					EmitSound( "Heavy.Battlecry03" );
+#if GAME_DLL
+					SpeakConceptIfAllowed(MP_CONCEPT_MVM_DEPLOY_RAGE);
+#endif
 					return;
 				}
 
@@ -19230,22 +19234,42 @@ bool CTFPlayer::WantsLagCompensationOnEntity( const CBasePlayer *pPlayer, const 
 		}
 	}
 
-	if ( pPlayer->GetTeamNumber() == GetTeamNumber() && bIsMedic == false )
-		return false;
-	
+	// check if teammates should be lag compensated
+	int iUnlagTeammates = 0;
+	if ( pPlayer->GetTeamNumber() == GetTeamNumber() )
+	{
+		iUnlagTeammates = tf_unlag_teammates.GetInt();
+
+		if ( iUnlagTeammates == 0 && bIsMedic == false )
+			return false;
+	}
+
 	// If this entity hasn't been transmitted to us and acked, then don't bother lag compensating it.
 	if ( pEntityTransmitBits && !pEntityTransmitBits->Get( pPlayer->entindex() ) )
 		return false;
 
 	const Vector &vMyOrigin = GetAbsOrigin();
 	const Vector &vHisOrigin = pPlayer->GetAbsOrigin();
+	
+	float fDistance = vHisOrigin.DistTo( vMyOrigin );
+
+	// teammates are only lag compensated for melee attacks for tf_unlag_teammates 2
+	if ( iUnlagTeammates == 2 )
+	{
+		if ( fDistance > 512 )
+			return false;
+		
+		CTFWeaponBaseMelee *pWeapon = dynamic_cast <CTFWeaponBaseMelee*>( GetActiveWeapon() );
+		if ( !pWeapon )
+			return false;
+	}
 
 	// get max distance player could have moved within max lag compensation time, 
 	// multiply by 1.5 to to avoid "dead zones"  (sqrt(2) would be the exact value)
 	float maxDistance = 1.5 * pPlayer->MaxSpeed() * sv_maxunlag.GetFloat();
 
 	// If the player is within this distance, lag compensate them in case they're running past us.
-	if ( vHisOrigin.DistTo( vMyOrigin ) < maxDistance )
+	if ( fDistance < maxDistance )
 		return true;
 
 	// If their origin is not within a 45 degree cone in front of us, no need to lag compensate.
@@ -21664,7 +21688,7 @@ void CTFPlayer::InputSpeakResponseConcept( inputdata_t &inputdata )
 		while (token)
 		{
 			// find the start characters for the key and value
-			// (seperated by a : which we replace with null)
+			// (separated by a : which we replace with null)
 			char * RESTRICT key = token;
 			char * RESTRICT colon = const_cast<char *>(V_strnchr(key, ':', 510)); 
 			char * RESTRICT value;

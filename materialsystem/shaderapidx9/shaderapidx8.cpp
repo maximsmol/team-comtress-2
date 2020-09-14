@@ -3880,11 +3880,15 @@ void CShaderAPIDx8::DrawMesh( CMeshBase *pMesh )
 #endif
 
 	m_pRenderMesh = pMesh;
-	VertexFormat_t vertexFormat = m_pRenderMesh->GetVertexFormat();
-	SetVertexDecl( vertexFormat, m_pRenderMesh->HasColorMesh(), m_pRenderMesh->HasFlexMesh(), m_pMaterial->IsUsingVertexID() );
-	CommitStateChanges();
-	Assert( m_pRenderMesh && m_pMaterial );
-	m_pMaterial->DrawMesh( CompressionType( vertexFormat ) );
+	
+	if (m_pRenderMesh)
+	{
+		VertexFormat_t vertexFormat = m_pRenderMesh->GetVertexFormat();
+		SetVertexDecl(vertexFormat, m_pRenderMesh->HasColorMesh(), m_pRenderMesh->HasFlexMesh(), m_pMaterial->IsUsingVertexID());
+		CommitStateChanges();
+		Assert(m_pMaterial);
+		m_pMaterial->DrawMesh(CompressionType(vertexFormat));
+	}
 	m_pRenderMesh = NULL;
 
 #if defined( PIX_INSTRUMENTATION ) || defined( NVPERFHUD )
@@ -4003,7 +4007,7 @@ void CShaderAPIDx8::UpdateFrameSyncQuery( int queryIndex, bool bIssue )
 
 		double flStartTime = Plat_FloatTime();
 		BOOL dummyData = 0;
-		HRESULT hr = S_OK;
+		HRESULT hr;
 		// NOTE: This fix helps out motherboards that are a little freaky.
 		// On such boards, sometimes the driver has to reset itself (an event which takes several seconds)
 		// and when that happens, the frame sync query object gets lost
@@ -4013,16 +4017,10 @@ void CShaderAPIDx8::UpdateFrameSyncQuery( int queryIndex, bool bIssue )
 			if ( hr != S_FALSE )
 				break;
 			double flCurrTime = Plat_FloatTime();
-			// don't wait more than 200ms (5fps) for these
-			if ( flCurrTime - flStartTime > 0.200f )
+			// don't wait more than 100ms for these
+			if ( flCurrTime - flStartTime > 0.100f )
 				break;
-			// Avoid burning a full core while waiting for the query. Spinning can actually harm performance
-			// because there might be driver threads that are trying to do work that end up starved, and the
-			// power drawn by the CPU may take away from the power available to the integrated graphics chip.
-			// A sleep of one millisecond should never be long enough to affect performance, especially since
-			// this should only trigger when the CPU is already ahead of the GPU.
-			// On L4D2/TF2 in GL mode this spinning was causing slowdowns.
-			ThreadSleep( 1 );
+			ThreadSleepEx();
 		}
 		m_bQueryIssued[queryIndex] = false;
 		Assert(hr == S_OK || hr == D3DERR_DEVICELOST);
@@ -4084,7 +4082,6 @@ void CShaderAPIDx8::ForceHardwareSync( void )
 		{
 			m_currentSyncQuery = 0;
 		}
-		double fStart = Plat_FloatTime();
 		int waitIndex = ((m_currentSyncQuery + NUM_FRAME_SYNC_QUERIES) - (NUM_FRAME_SYNC_FRAMES_LATENCY+1)) % NUM_FRAME_SYNC_QUERIES;
 		UpdateFrameSyncQuery( waitIndex, false );
 		UpdateFrameSyncQuery( m_currentSyncQuery, true );

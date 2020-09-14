@@ -54,6 +54,7 @@
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+#include "vstdlib/jobthread.h"
 
 #define BACKFACE_EPSILON	-0.01f
 
@@ -155,7 +156,42 @@ static Vector2D s_OrthographicHalfDiagonal;
 //-----------------------------------------------------------------------------
 //
 //-----------------------------------------------------------------------------
-typedef CVarBitVec CVisitedSurfs;
+class CVisitedSurfs
+{
+public:
+	FORCEINLINE bool VisitSurface(SurfaceHandle_t surfID)
+	{
+		return !m_bits.TestAndSet(MSurf_Index(surfID));
+	}
+
+	FORCEINLINE void MarkSurfaceVisited(SurfaceHandle_t surfID)
+	{
+		m_bits.Set(MSurf_Index(surfID));
+	}
+
+	FORCEINLINE bool VisitedSurface(SurfaceHandle_t surfID)
+	{
+		return m_bits.IsBitSet(MSurf_Index(surfID));
+	}
+
+	FORCEINLINE bool VisitedSurface(int index)
+	{
+		return m_bits.IsBitSet(index);
+	}
+
+	FORCEINLINE int GetSize() { return m_bits.GetNumBits(); }
+
+	void Resize(int nSurfaces)
+	{
+		m_bits.Resize(nSurfaces);
+	}
+	void ClearAll()
+	{
+		m_bits.ClearAll();
+	}
+
+	CVarBitVec m_bits;
+};
 
 
 //-----------------------------------------------------------------------------
@@ -248,7 +284,7 @@ public:
 	static CWorldRenderList *FindOrCreateList( int nSurfaces )
 	{
 		CWorldRenderList *p = g_Pool.GetObject();
-		if ( p->m_VisitedSurfs.GetNumBits() == 0 )
+		if ( p->m_VisitedSurfs.GetSize() == 0 )
 		{
 			p->Init( nSurfaces );
 		}
@@ -257,7 +293,7 @@ public:
 			p->AddRef();
 		}
 
-		AssertMsg( p->m_VisitedSurfs.GetNumBits() == nSurfaces, "World render list pool not cleared between maps" );
+		AssertMsg( p->m_VisitedSurfs.GetSize() == nSurfaces, "World render list pool not cleared between maps" );
 
 		return p;
 	}
@@ -362,27 +398,6 @@ IWorldRenderList *AllocWorldRenderList()
 	return CWorldRenderList::FindOrCreateList( host_state.worldbrush->numsurfaces );
 }
 
-
-FORCEINLINE bool VisitSurface( CVisitedSurfs &visitedSurfs, SurfaceHandle_t surfID )
-{
-	return !visitedSurfs.TestAndSet( MSurf_Index( surfID ) );
-}
-
-FORCEINLINE void MarkSurfaceVisited( CVisitedSurfs &visitedSurfs, SurfaceHandle_t surfID )
-{
-	visitedSurfs.Set( MSurf_Index( surfID ) );
-}
-
-FORCEINLINE bool VisitedSurface( CVisitedSurfs &visitedSurfs, SurfaceHandle_t surfID )
-{
-	return visitedSurfs.IsBitSet( MSurf_Index( surfID ) );
-}
-
-FORCEINLINE bool VisitedSurface( CVisitedSurfs &visitedSurfs, int index )
-{
-	return visitedSurfs.IsBitSet( index );
-}
-
 //-----------------------------------------------------------------------------
 // Activates top view
 //-----------------------------------------------------------------------------
@@ -439,10 +454,10 @@ void Shader_TranslucentWorldSurface( CWorldRenderList *pRenderList, SurfaceHandl
 	// Hook into the chain of translucent objects for this leaf
 	int sortGroup = MSurf_SortGroup( surfID );
 	pRenderList->m_AlphaSortList.AddSurfaceToTail( surfID, sortGroup, pRenderList->m_VisibleLeaves.Count()-1 );
-	if ( MSurf_Flags( surfID ) & (SURFDRAW_HASLIGHTSYTLES|SURFDRAW_HASDLIGHT) )
+	if (MSurf_Flags(surfID) & (SURFDRAW_HASLIGHTSYTLES | SURFDRAW_HASDLIGHT))
 	{
-		pRenderList->m_DlightSurfaces[sortGroup].AddToTail( surfID );
-		
+		pRenderList->m_DlightSurfaces[sortGroup].AddToTail(surfID);
+
 		DlightSurfaceSetQueuingFlag(surfID);
 	}
 }
@@ -456,11 +471,13 @@ inline void Shader_WorldSurface( CWorldRenderList *pRenderList, SurfaceHandle_t 
 	// Each surface is in exactly one group
 	int nSortGroup = MSurf_SortGroup( surfID );
 
+#if 0
 	// Add decals on non-displacement surfaces
 	if( SurfaceHasDecals( surfID ) )
 	{
 		DecalSurfaceAdd( surfID, nSortGroup );
 	}
+#endif
 
 	int nMaterialSortID = MSurf_MaterialSortID( surfID );
 
@@ -2437,7 +2454,7 @@ static inline void DrawDisplacementsInLeaf( CWorldRenderList *pRenderList, mleaf
 		SurfaceHandle_t parentSurfID = pDispInfo->GetParent();
 
 		// already processed this frame? Then don't do it again!
-		if ( VisitSurface( visitedSurfs, parentSurfID ) )
+		if ( visitedSurfs.VisitSurface(parentSurfID) )
 		{
 			if ( MSurf_Flags( parentSurfID ) & SURFDRAW_TRANS)
 			{
@@ -2476,6 +2493,10 @@ static inline void UpdateVisibleLeafLists( CWorldRenderList *pRenderList, mleaf_
 //-----------------------------------------------------------------------------
 static void FASTCALL R_DrawLeaf( CWorldRenderList *pRenderList, mleaf_t *pleaf )
 {
+	SurfaceHandle_t* pSurfID = &host_state.worldbrush->marksurfaces[pleaf->firstmarksurface];
+#if defined( _X360 ) || defined( _PS3 )
+	PREFETCH_128(pSurfID, 0);
+#endif
 	// Add this leaf to the list of visible leaves
 	UpdateVisibleLeafLists( pRenderList, pleaf );
 
@@ -2494,14 +2515,19 @@ static void FASTCALL R_DrawLeaf( CWorldRenderList *pRenderList, mleaf_t *pleaf )
 #endif
 
 	// Add non-displacement surfaces
+#if defined( _X360 ) || defined( _PS3 )
+	int count = MIN(pleaf->nummarksurfaces, 7);
+	for (int i = 0; i < count; ++i)
+	{
+		PREFETCH_128(pSurfID[i], 0);
+	}
+#endif
+
 	int i;
 	int nSurfaceCount = pleaf->nummarknodesurfaces;
-	SurfaceHandle_t *pSurfID = &host_state.worldbrush->marksurfaces[pleaf->firstmarksurface];
 	CVisitedSurfs &visitedSurfs = pRenderList->m_VisitedSurfs;
 	for ( i = 0; i < nSurfaceCount; ++i )
 	{
-		// garymctoptimize - can we prefetch the next surfaces?
-		// We seem to be taking a huge hit here for referencing the surface for the first time.
 		SurfaceHandle_t surfID = pSurfID[i];
 		ASSERT_SURF_VALID( surfID );
 		// there are never any displacements or nodraws in the leaf list
@@ -2509,7 +2535,10 @@ static void FASTCALL R_DrawLeaf( CWorldRenderList *pRenderList, mleaf_t *pleaf )
 		Assert( (MSurf_Flags( surfID ) & SURFDRAW_NODE) );
 		Assert( !SurfaceHasDispInfo(surfID) );
 		// mark this one to be drawn at the node
-		MarkSurfaceVisited( visitedSurfs, surfID );
+		visitedSurfs.MarkSurfaceVisited(surfID);
+#if defined( _X360 ) || defined( _PS3 )
+		PREFETCH_128(pSurfID[i + 7], 0);
+#endif
 	}
 
 #ifdef USE_CONVARS
@@ -2522,20 +2551,56 @@ static void FASTCALL R_DrawLeaf( CWorldRenderList *pRenderList, mleaf_t *pleaf )
 		SurfaceHandle_t surfID = pSurfID[i];
 
 		// Don't process the same surface twice
-		if ( !VisitSurface( visitedSurfs, surfID ) )
+		if (!visitedSurfs.VisitSurface(surfID))
 			continue;
 
-		Assert( !(MSurf_Flags( surfID ) & SURFDRAW_NODE) );
+		uint32 flags = surfID->flags;
+		Assert( !(flags & SURFDRAW_NODE) );
 
 		// Back face cull; only func_detail are drawn here
-		if ( (MSurf_Flags( surfID ) & SURFDRAW_NOCULL) == 0 )
+		if ( (flags & SURFDRAW_NOCULL) == 0 )
 		{
-			if ( (DotProduct(MSurf_Plane( surfID ).normal, modelorg) -
-				  MSurf_Plane( surfID ).dist ) < BACKFACE_EPSILON )
+			if ( (DotProduct(surfID->plane->normal, modelorg) -
+				  surfID->plane->dist ) < BACKFACE_EPSILON )
 				continue;
 		}
 
-		R_DrawSurface( pRenderList, surfID );
+		int sortGroup = (flags & SURFDRAW_SORTGROUP_MASK) >> SURFDRAW_SORTGROUP_SHIFT;
+
+		if ( flags & SURFDRAW_TRANS )
+		{
+			pRenderList->m_AlphaSortList.AddSurfaceToTail(surfID, sortGroup, pRenderList->m_VisibleLeaves.Count() - 1);
+			if (flags & (SURFDRAW_HASLIGHTSYTLES | SURFDRAW_HASDLIGHT))
+			{
+				pRenderList->m_DlightSurfaces[sortGroup].AddToTail(surfID);
+
+				DlightSurfaceSetQueuingFlag(surfID);
+			}
+		}
+		else
+		{
+#if 0
+			// Add decals on non-displacement surfaces
+			if (SurfaceHasDecals(surfID))
+			{
+				DecalSurfaceAdd(surfID, sortGroup);
+			}
+#endif
+
+			int nMaterialSortID = MSurf_MaterialSortID(surfID);
+			if (flags & (SURFDRAW_HASLIGHTSYTLES | SURFDRAW_HASDLIGHT))
+			{
+				pRenderList->m_DlightSurfaces[sortGroup].AddToTail(surfID);
+				if (!DlightSurfaceSetQueuingFlag(surfID))
+				{
+					pRenderList->m_SortList.AddSurfaceToTail(surfID, sortGroup, nMaterialSortID);
+				}
+			}
+			else
+			{
+				pRenderList->m_SortList.AddSurfaceToTail(surfID, sortGroup, nMaterialSortID);
+			}
+		}
 	}
 }
 
@@ -2556,7 +2621,7 @@ static void FASTCALL R_DrawLeafNoCull( CWorldRenderList *pRenderList, mleaf_t *p
 		SurfaceHandle_t surfID = pSurfID[i];
 
 		// Don't process the same surface twice
-		if ( !VisitSurface( visitedSurfs, surfID ) )
+		if ( !visitedSurfs.VisitSurface( surfID ) )
 			continue;
 
 		R_DrawSurfaceNoCull( pRenderList, surfID );
@@ -2569,75 +2634,72 @@ static void FASTCALL R_DrawLeafNoCull( CWorldRenderList *pRenderList, mleaf_t *p
 //-----------------------------------------------------------------------------
 static void R_RecursiveWorldNodeNoCull( CWorldRenderList *pRenderList, mnode_t *node, int nCullMask )
 {
-	int			side;
-	cplane_t	*plane;
-	float		dot;
+	int leafCount = 0;
+
+	const int NODELIST_MAX = 1024;
+	mleaf_t* leafList[NODELIST_MAX];
+	mnode_t* nodeList[NODELIST_MAX];
+	int nodeReadIndex = 0;
+	int nodeWriteIndex = 0;
 
 	while (true)
 	{
 		// no polygons in solid nodes
-		if (node->contents == CONTENTS_SOLID)
-			return;		// solid
-
-		// Check PVS signature
-		if (node->visframe != r_visframecount)
-			return;
-
-		// Cull against the screen frustum or the appropriate area's frustum.
-		if ( nCullMask != FRUSTUM_SUPPRESS_CLIPPING )
+		if (node->contents != CONTENTS_SOLID && node->visframe >= r_visframecount)
 		{
-			if (node->contents >= -1)
+			// Cull against the screen frustum or the appropriate area's frustum.
+			if (nCullMask != FRUSTUM_SUPPRESS_CLIPPING)
 			{
-				if ((nCullMask != 0) || ( node->area > 0 ))
+				if (node->contents >= -1)
 				{
-					if ( R_CullNode( &g_Frustum, node, nCullMask ) )
-						return;
+					if ((nCullMask != 0) || (node->area > 0))
+					{
+						if (!R_CullNode(&g_Frustum, node, nCullMask))
+						{
+							// if a leaf node, draw stuff
+							if (node->contents >= 0)
+							{
+								if (leafCount < NODELIST_MAX)
+								{
+									leafList[leafCount++] = (mleaf_t*)node;
+								}
+							}
+							else
+							{
+#if defined( _X360 ) || defined( _PS3 )
+								PREFETCH_128(node->children[0], 0);
+								PREFETCH_128(node->children[1], 0);
+#endif
+								// node is just a decision point, so go down the appropriate sides
+								nodeList[nodeWriteIndex] = node->children[0];
+								nodeWriteIndex = (nodeWriteIndex + 1) & (NODELIST_MAX - 1);
+								// check for overflow of the ring buffer
+								Assert(nodeWriteIndex != nodeReadIndex);
+								node = node->children[1];
+								continue;
+							}
+						}
+					}
+				}
+				else
+				{
+					// This prevents us from culling nodes that are too small to worry about
+					if (node->contents == -2)
+					{
+						nCullMask = FRUSTUM_SUPPRESS_CLIPPING;
+					}
 				}
 			}
-			else
-			{
-				// This prevents us from culling nodes that are too small to worry about
-				if (node->contents == -2)
-				{
-					nCullMask = FRUSTUM_SUPPRESS_CLIPPING;
-				}
-			}
 		}
 
-		// if a leaf node, draw stuff
-		if (node->contents >= 0)
-		{
-			R_DrawLeafNoCull( pRenderList, (mleaf_t *)node );
-			return;
-		}
-
-		// node is just a decision point, so go down the appropriate sides
-
-		// find which side of the node we are on
-		plane = node->plane;
-		if ( plane->type <= PLANE_Z )
-		{
-			dot = modelorg[plane->type] - plane->dist;
-		}
-		else
-		{
-			dot = DotProduct (modelorg, plane->normal) - plane->dist;
-		}
-
-		// recurse down the children, closer side first.
-		// We have to do this because we need to find if the surfaces at this node
-		// exist in any visible leaves closer to the camera than the node is. If so,
-		// their r_surfacevisframe is set to indicate that we need to render them
-		// at this node.
-		side = dot >= 0 ? 0 : 1;
-
-		// Recurse down the side closer to the camera
-		R_RecursiveWorldNodeNoCull (pRenderList, node->children[side], nCullMask );
-
-		// recurse down the side farther from the camera
-		// NOTE: With this while loop, this is identical to just calling
-		// R_RecursiveWorldNodeNoCull (node->children[!side], nCullMask );
-		node = node->children[!side];
+		if (nodeReadIndex == nodeWriteIndex)
+			break;
+		node = nodeList[nodeReadIndex];
+		nodeReadIndex = (nodeReadIndex + 1) & (NODELIST_MAX - 1);
+	}
+	for (int i = 0; i < leafCount; i++)
+	{
+		R_DrawLeafNoCull(pRenderList, leafList[i]);
 	}
 }
 
@@ -2660,7 +2722,7 @@ static void R_RecursiveWorldNode( CWorldRenderList *pRenderList, mnode_t *node, 
 			return;		// solid
 
 		// Check PVS signature
-		if (node->visframe != r_visframecount)
+		if (node->visframe < r_visframecount)
 			return;
 
 		// Cull against the screen frustum or the appropriate area's frustum.
@@ -2723,7 +2785,7 @@ static void R_RecursiveWorldNode( CWorldRenderList *pRenderList, mnode_t *node, 
 		for ( ; i < nLastSurface; ++i, ++surfID )
 		{
 			// Only render things at this node that have previously been marked as visible
-			if ( !VisitedSurface( visitedSurfs, i ) )
+			if ( !visitedSurfs.VisitedSurface( i ) )
 				continue;
 
 			// Don't add surfaces that have displacement
@@ -2734,7 +2796,7 @@ static void R_RecursiveWorldNode( CWorldRenderList *pRenderList, mnode_t *node, 
 			// If a surface is marked to draw at a node, then it's not a func_detail.
 			// Only func_detail render at leaves. In the case of normal world surfaces,
 			// we only want to render them if they intersect a visible leaf.
-			int nFlags = MSurf_Flags( surfID );
+			uint32 nFlags = MSurf_Flags( surfID );
 
 			Assert( nFlags & SURFDRAW_NODE );
 
@@ -2743,7 +2805,18 @@ static void R_RecursiveWorldNode( CWorldRenderList *pRenderList, mnode_t *node, 
 			if ( !(nFlags & SURFDRAW_UNDERWATER) && ( side ^ !!(nFlags & SURFDRAW_PLANEBACK)) )
 				continue;		// wrong side
 
-			R_DrawSurface( pRenderList, surfID );
+			if (nFlags & SURFDRAW_SKY)
+			{
+				pRenderList->m_bSkyVisible = true;
+			}
+			else if (nFlags & SURFDRAW_TRANS)
+			{
+				Shader_TranslucentWorldSurface(pRenderList, surfID);
+			}
+			else
+			{
+				Shader_WorldSurface(pRenderList, surfID);
+			}
 		}
 
 		// recurse down the side farther from the camera
@@ -2865,7 +2938,7 @@ static void R_DrawTopViewLeaf( CWorldRenderList *pRenderList, mleaf_t *pleaf )
 		// Mark this surface as being in a visible leaf this frame. If this
 		// surface is meant to be drawn at a node (SURFDRAW_NODE), 
 		// then it will be drawn in the recursive code down below.
-		if ( !VisitSurface( visitedSurfs, surfID ) )
+		if ( !visitedSurfs.VisitSurface( surfID ) )
 			continue;
 
 		// Don't add surfaces that have displacement; they are handled above
@@ -2933,7 +3006,7 @@ void R_RenderWorldTopView( CWorldRenderList *pRenderList, mnode_t *node )
 			SurfaceHandle_t surfID = SurfaceHandleFromIndex( node->firstsurface );
 			for ( int i = 0; i < node->numsurfaces; i++, surfID++ )
 			{
-				if ( !VisitSurface( visitedSurfs, surfID ) )
+				if ( !visitedSurfs.VisitSurface(surfID ) )
 					continue;
 
 				// Don't add surfaces that have displacement
@@ -2981,6 +3054,145 @@ static void SpewLeaf()
 {
 	int leaf = CM_PointLeafnum( g_EngineRenderer->ViewOrigin() );
 	ConMsg(	"view leaf %d\n", leaf );
+}
+
+//-----------------------------------------------------------------------------
+// Job for building the world rendering list
+//-----------------------------------------------------------------------------
+
+class CBuildWorldListsJob : public CJob
+{
+public:
+
+	CBuildWorldListsJob(
+		CWorldRenderList* pRenderList,
+		WorldListInfo_t* pInfo,
+		bool bShadowDepth,
+		const Vector& currentViewOrigin,
+		int visFrameCount,
+		bool bDrawTopView,
+		bool bTopViewNoBackfaceCulling,
+		bool bTopViewNoVisCheck,
+		const Vector2D& orthographicCenter,
+		const Vector2D& orthographicHalfDiagonal,
+		const Frustum_t* pFrustum,
+		const CUtlVector< Frustum_t, CUtlMemoryAligned< Frustum_t, 16 > >* pAeraFrustum,
+		unsigned char* pRenderAreaBits,
+		bool bViewerInSolidSpace,
+		const Vector& modelOrigin);
+
+private:
+
+	virtual JobStatus_t	DoExecute();
+
+	CWorldRenderList* m_pRenderList;
+	WorldListInfo_t* m_pWorldListInfo;
+	bool					m_bShadowDepth;
+
+	Vector					m_currentViewOrigin;
+	int						m_visFrameCount;
+	bool					m_bDrawTopView;
+
+	bool					m_bTopViewNoBackfaceCulling;
+	bool					m_bTopViewNoVisCheck;
+	Vector2D				m_OrthographicCenter;
+	Vector2D				m_OrthographicHalfDiagonal;
+
+	const Frustum_t* m_pFrustum;
+	const CUtlVector< Frustum_t, CUtlMemoryAligned< Frustum_t, 16 > >* m_pAreaFrustum;
+	unsigned char			m_RenderAreaBits[32];
+	bool					m_bViewerInSolidSpace;
+	Vector					m_modelOrigin;
+};
+
+CBuildWorldListsJob::CBuildWorldListsJob(
+	CWorldRenderList* pRenderList,
+	WorldListInfo_t* pInfo,
+	bool bShadowDepth,
+	const Vector& currentViewOrigin,
+	int visFrameCount,
+	bool bDrawTopView,
+	bool bTopViewNoBackfaceCulling,
+	bool bTopViewNoVisCheck,
+	const Vector2D& orthographicCenter,
+	const Vector2D& orthographicHalfDiagonal,
+	const Frustum_t* pFrustum,
+	const CUtlVector< Frustum_t, CUtlMemoryAligned< Frustum_t, 16 > >* pAeraFrustum,
+	unsigned char* pRenderAreaBits,
+	bool bViewerInSolidSpace,
+	const Vector& modelOrigin)
+	:
+	m_pRenderList(pRenderList),
+	m_pWorldListInfo(pInfo),
+	m_bShadowDepth(bShadowDepth),
+	m_currentViewOrigin(currentViewOrigin),
+	m_visFrameCount(visFrameCount),
+	m_bDrawTopView(bDrawTopView),
+	m_bTopViewNoBackfaceCulling(bTopViewNoBackfaceCulling),
+	m_bTopViewNoVisCheck(bTopViewNoVisCheck),
+	m_OrthographicCenter(orthographicCenter),
+	m_OrthographicHalfDiagonal(orthographicHalfDiagonal),
+	m_pFrustum(pFrustum),
+	m_bViewerInSolidSpace(bViewerInSolidSpace),
+	m_modelOrigin(modelOrigin)
+{
+	m_pAreaFrustum = pAeraFrustum;
+	memcpy(m_RenderAreaBits, pRenderAreaBits, sizeof(m_RenderAreaBits));
+}
+
+JobStatus_t CBuildWorldListsJob::DoExecute()
+{
+	if (!m_bDrawTopView)
+	{
+		if (m_bShadowDepth)
+		{
+			R_RecursiveWorldNodeNoCull(m_pRenderList, host_state.worldbrush->nodes, r_frustumcullworld.GetBool() ? FRUSTUM_CLIP_ALL : FRUSTUM_SUPPRESS_CLIPPING);
+		}
+		else
+		{
+			R_RecursiveWorldNode(m_pRenderList, host_state.worldbrush->nodes, r_frustumcullworld.GetBool() ? FRUSTUM_CLIP_ALL : FRUSTUM_SUPPRESS_CLIPPING);
+		}
+	}
+	else
+	{
+		R_RenderWorldTopView(m_pRenderList, host_state.worldbrush->nodes);
+	}
+
+
+	// This builds all lightmaps, including those for translucent surfaces
+	// Don't bother in topview?
+	if (!r_drawtopview && !m_bShadowDepth)
+	{
+		Shader_BuildDynamicLightmaps(m_pRenderList);
+	}
+
+	// Return the back-to-front leaf ordering
+	if (m_pWorldListInfo)
+	{
+		// Compute fog volume info for rendering
+		if (!m_bShadowDepth)
+		{
+			FogVolumeInfo_t fogInfo;
+			ComputeFogVolumeInfo(&fogInfo);
+			if (fogInfo.m_InFogVolume)
+			{
+				m_pWorldListInfo->m_ViewFogVolume = MAT_SORT_GROUP_STRICTLY_UNDERWATER;
+			}
+			else
+			{
+				m_pWorldListInfo->m_ViewFogVolume = MAT_SORT_GROUP_STRICTLY_ABOVEWATER;
+			}
+		}
+		else
+		{
+			m_pWorldListInfo->m_ViewFogVolume = MAT_SORT_GROUP_STRICTLY_ABOVEWATER;
+		}
+		m_pWorldListInfo->m_LeafCount = m_pRenderList->m_VisibleLeaves.Count();
+		m_pWorldListInfo->m_pLeafList = m_pRenderList->m_VisibleLeaves.Base();
+		m_pWorldListInfo->m_pLeafFogVolume = m_pRenderList->m_VisibleLeafFogVolumes.Base();
+	}
+
+	return JOB_OK;
 }
 
 
@@ -3035,7 +3247,7 @@ void R_BuildWorldLists( IWorldRenderList *pRenderListIn, WorldListInfo_t* pInfo,
 		R_RenderWorldTopView( pRenderList, host_state.worldbrush->nodes );
 	}
 
-		// This builds all lightmaps, including those for translucent surfaces
+	// This builds all lightmaps, including those for translucent surfaces
 	// Don't bother in topview?
 	if ( !r_drawtopview && !bShadowDepth )
 	{

@@ -144,7 +144,7 @@ void FindHullIntersection( const Vector &vecSrc, trace_t &tr, const Vector &mins
 				UTIL_TraceLine( vecSrc, vecEnd, MASK_SOLID, pEntity, COLLISION_GROUP_NONE, &tmpTrace );
 				if ( tmpTrace.fraction < 1.0 )
 				{
-					float thisDistance = (tmpTrace.endpos - vecSrc).Length();
+					float thisDistance = (tmpTrace.endpos - vecSrc).LengthSqr();
 					if ( thisDistance < distance )
 					{
 						tr = tmpTrace;
@@ -2135,7 +2135,6 @@ void CTFWeaponBase::SetReloadTimer( float flReloadTime )
 
 	// Don't push out secondary attack, because our secondary fire
 	// systems are all separate from primary fire (sniper zooming, demoman pipebomb detonating, etc)
-	// TODO(maximsmol): this is probably a bug
 	//m_flNextSecondaryAttack = flTime;
 
 	// Set next idle time (based on reloading).
@@ -2174,19 +2173,10 @@ void CTFWeaponBase::SendReloadEvents()
 //-----------------------------------------------------------------------------
 void CTFWeaponBase::ItemBusyFrame( void )
 {
-	CTFPlayer* pOwner = ToTFPlayer(GetOwner());
-#ifdef GAME_DLL
-	if (pOwner && pOwner->m_nButtons & IN_ATTACK2)
-	{
-		// We need to do this to catch the case of player trying to detonate
-		// pipebombs while in the middle of reloading.
-		SecondaryAttack();
-	}
-#endif
-
 	// Call into the base ItemBusyFrame.
 	BaseClass::ItemBusyFrame();
 
+	CTFPlayer *pOwner = ToTFPlayer( GetOwner() );
 	if ( !pOwner )
 	{
 		return;
@@ -4172,16 +4162,14 @@ ShadowType_t CTFWeaponBase::ShadowCastType( void )
 // -----------------------------------------------------------------------------
 // Purpose:
 // -----------------------------------------------------------------------------
-bool CTFWeaponBase::CanAttack() const
+bool CTFWeaponBase::CanAttack()
 {
 	CTFPlayer *pPlayer = GetTFPlayerOwner();
-	if (pPlayer == nullptr)
-		return false;
 
-	if (!pPlayer->CanAttack(GetCanAttackFlags()))
-		return false;
+	if ( pPlayer )
+		return pPlayer->CanAttack( GetCanAttackFlags() );
 
-	return true;
+	return false;
 }
 
 
@@ -5416,22 +5404,11 @@ QAngle CTFWeaponBase::GetSpreadAngles( void )
 	return angEyes;
 }
 
-bool CTFWeaponBase::CanPerformPrimaryAttack() const
-{
-	if (!CanAttack())
-		return false;
-
-	return BaseClass::CanPerformPrimaryAttack();
-}
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 bool CTFWeaponBase::CanPerformSecondaryAttack() const
 {
-	if (!CanAttack())
-		return false;
-
 	CTFPlayer *pOwner = ToTFPlayer( GetOwner() );
 
     // fix stickies not being detonated while attacking

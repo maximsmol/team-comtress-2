@@ -1333,7 +1333,7 @@ void C_BaseAnimating::DelayedInitModelEffects( void )
 					{
 						// Halloween Spell Effect Check
 						int iHalloweenSpell = 0;
-						if ( TF_IsHolidayActive( kHoliday_HalloweenOrFullMoon ) )
+						if ( true || TF_IsHolidayActive( kHoliday_HalloweenOrFullMoon ) )
 						{
 							// if the owner is a Sentry, Check its owner
 							if ( GetOwnerEntity() && GetOwnerEntity()->IsBaseObject() )
@@ -2646,9 +2646,9 @@ void C_BaseAnimating::CalculateIKLocks( float currentTime )
 
 					// debugoverlay->AddBoxOverlay( origin, Vector( -1, -1, -1 ), Vector( 1, 1, 1 ), QAngle( 0, 0, 0 ), 255, 0, 0, 0, 0 );
 
-					float d = (pTarget->est.pos - origin).Length();
+					float d = (pTarget->est.pos - origin).LengthSqr();
 
-					if ( d >= flDist)
+					if ( d >= flDist * flDist)
 						continue;
 
 					flDist = d;
@@ -5836,7 +5836,7 @@ int C_BaseAnimating::LookupPoseParameter( CStudioHdr *pstudiohdr, const char *sz
 
 	for (int i = 0; i < pstudiohdr->GetNumPoseParameters(); i++)
 	{
-		if (stricmp( pstudiohdr->pPoseParameter( i ).pszName(), szName ) == 0)
+		if (V_stricmp( pstudiohdr->pPoseParameter( i ).pszName(), szName ) == 0)
 		{
 			return i;
 		}

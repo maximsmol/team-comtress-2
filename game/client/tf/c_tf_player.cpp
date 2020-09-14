@@ -2177,6 +2177,8 @@ class CProxyUrineLevel : public CResultProxy
 public:
 	void OnBind( void *pC_BaseEntity )
 	{
+		// FIXME(mastercoms): set vec value is pretty expensive here
+
 		Assert( m_pResult );
 
 		// default to zero
@@ -7868,9 +7870,10 @@ void C_TFPlayer::CreatePlayerGibs( const Vector &vecOrigin, const Vector &vecVel
 	vecBreakVelocity *= tf_playergib_force.GetFloat();
 
 	// Cap the impulse.
-	float flSpeed = vecBreakVelocity.Length();
-	if ( flSpeed > tf_playergib_maxspeed.GetFloat() )
+	float flSpeed = vecBreakVelocity.LengthSqr();
+	if ( flSpeed > tf_playergib_maxspeed.GetFloat() * tf_playergib_maxspeed.GetFloat())
 	{
+		flSpeed = FastSqrt(flSpeed);
 		VectorScale( vecBreakVelocity, tf_playergib_maxspeed.GetFloat() / flSpeed, vecBreakVelocity );
 	}
 
@@ -9529,7 +9532,7 @@ void C_TFPlayer::FireEvent( const Vector& origin, const QAngle& angles, int even
 
 			// Halloween-specific bonus footsteps
 			int iHalloweenFootstepType = 0;
-			if ( TF_IsHolidayActive( kHoliday_HalloweenOrFullMoon ) )
+			if ( true || TF_IsHolidayActive( kHoliday_HalloweenOrFullMoon ) )
 			{
 				CALL_ATTRIB_HOOK_INT( iHalloweenFootstepType, halloween_footstep_type );
 			}

@@ -1536,10 +1536,11 @@ static void CheckSurfaceLighting( SurfaceHandle_t surfID, worldbrushdata_t *pBru
 		{
 			Vector c;
 			ColorRGBExp32ToVector( pLightmap[i], c );
-			if ( c.Length() > maxLen )
+			float len = c.LengthSqr();
+			if ( len > maxLen )
 			{
 				maxLight = c;
-				maxLen = c.Length();
+				maxLen = len;
 			}
 		}
 		unsigned char color[4];
@@ -2393,7 +2394,7 @@ void Mod_LoadCubemapSamples( void )
 
 	// We have separate HDR versions of the textures.  In order to deal with this,
 	// we have blahenvmap.hdr.vtf and blahenvmap.vtf.
-	char *pHDRExtension = "";
+	char *pHDRExtension = (char*)"";
 	if( bHDR )
 	{
 		pHDRExtension = ".hdr";

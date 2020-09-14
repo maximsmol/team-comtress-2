@@ -261,10 +261,6 @@ bool CGameClient::ProcessFileCRCCheck( CLC_FileCRCCheck *msg )
 
 	char warningStr[1024] = {0};
 
-	// The client may send us files we don't care about, so filter them here
-//	if ( !sv.GetPureServerWhitelist()->GetForceMatchList()->IsFileInList( msg->m_szFilename ) )
-//		return true;
-
 	// first check against all the other files users have sent
 	FileHash_t filehash;
 	filehash.m_md5contents = msg->m_MD5;
@@ -274,8 +270,8 @@ bool CGameClient::ProcessFileCRCCheck( CLC_FileCRCCheck *msg )
 	filehash.m_nPackFileNumber = msg->m_nPackFileNumber;
 	filehash.m_PackFileID = msg->m_PackFileID;
 
-	const char *path = msg->m_szPathID;
-	const char *fileName = msg->m_szFilename;
+	const char *path = msg->GetPath();
+	const char *fileName = msg->GetFileName();
 	if ( g_PureFileTracker.DoesFileMatch( path, fileName, msg->m_nFileFraction, &filehash, GetNetworkID() ) )
 	{
 		// track successful file
@@ -837,12 +833,14 @@ void CGameClient::WriteGameSounds( bf_write &buf )
 	}
 }
 
+static ConVar sv_multiplayer_maxsounds("sv_multiplayer_sounds", "20");
+
 int	CGameClient::FillSoundsMessage(SVC_Sounds &msg)
 {
 	int i, count = m_Sounds.Count();
 
-	// send max 64 sound in multiplayer per snapshot, 255 in SP
-	int max = m_Server->IsMultiplayer() ? 32 : 255;
+	// send max 20 sound in multiplayer per snapshot, 255 in SP
+	int max = m_Server->IsMultiplayer() ? sv_multiplayer_maxsounds.GetInt() : 255;
 
 	// Discard events if we have too many to signal with 8 bits
 	if ( count > max )
@@ -852,7 +850,7 @@ int	CGameClient::FillSoundsMessage(SVC_Sounds &msg)
 	if ( !count )
 		return 0;
 
-	SoundInfo_t defaultSound; defaultSound.SetDefault();
+	SoundInfo_t defaultSound;
 	SoundInfo_t *pDeltaSound = &defaultSound;
 	
 	msg.m_nNumSounds = count;

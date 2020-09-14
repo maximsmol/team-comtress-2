@@ -468,6 +468,7 @@ static void ReadMaterialSystemConfigFromRegistry( MaterialSystem_Config_t &confi
 	}
 
 	int nValue = ReadVideoConfigInt( "DXLevel_V1", -1 );
+#if 0
 	if ( nValue != -1 )
 	{
 		nValue = OverrideVideoConfigFromCommandLine( "mat_dxlevel", nValue );
@@ -478,6 +479,7 @@ static void ReadMaterialSystemConfigFromRegistry( MaterialSystem_Config_t &confi
 			conVar.SetValue( nValue );
 		}
 	}
+#endif
 
 	nValue = ReadVideoConfigInt( "MotionBlur", -1 );
 	if ( nValue != -1 )
@@ -588,7 +590,9 @@ static void OverrideMaterialSystemConfigFromCommandLine( MaterialSystem_Config_t
 	}
 
 	// Check for windowed mode command line override
-	if ( CommandLine()->FindParm( "-sw" ) || 
+	// HACK(mastercoms): force windowed for now because fullscreen is busted
+	if ( !CommandLine()->FindParm("-dev") ||
+		CommandLine()->FindParm( "-sw" ) ||
 		CommandLine()->FindParm( "-startwindowed" ) ||
 		CommandLine()->FindParm( "-windowed" ) ||
 		CommandLine()->FindParm( "-window" ) )
@@ -1984,7 +1988,7 @@ int FindOrAddMesh( IMaterial *pMaterial, int vertexCount )
 
 	int nMaxVertices = pRenderContext->GetMaxVerticesToRender( pMaterial );
 	int worldLimit = mat_max_worldmesh_vertices.GetInt();
-	worldLimit = max(worldLimit,1024);
+	worldLimit = MAX(worldLimit,1024);
 	if ( nMaxVertices > worldLimit )
 	{
 		nMaxVertices = mat_max_worldmesh_vertices.GetInt();
@@ -2109,7 +2113,7 @@ void WorldStaticMeshCreate( void )
 //			|| SurfaceHasDispInfo( surfID ) )
 		if( SurfaceHasDispInfo( surfID ) )
 		{
-			MSurf_VertBufferIndex( surfID ) = 0xFFFF;
+			MSurf_VertBufferIndex( surfID ) = INT_MAX;
 			continue;
 		}
 
@@ -2172,7 +2176,7 @@ void WorldStaticMeshCreate( void )
 		// NOTE: Index count is zero because this will be a static vertex buffer!!!
 		CMeshBuilder meshBuilder;
 		meshBuilder.Begin( g_Meshes[i].pMesh, MATERIAL_TRIANGLES, g_Meshes[i].vertCount, 0 );
-
+		Msg("Start world mesh draw: %d\n", g_Meshes[i].vertCount);
 		for ( int j = 0; j < g_WorldStaticMeshes.Count(); j++ )
 		{
 			int meshId = sortIndex[j];

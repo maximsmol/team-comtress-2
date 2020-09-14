@@ -204,6 +204,11 @@ public:
 	// used for renderables with oscillating bounds to reduce the cost of
 	// them reinserting themselves into the tree over and over.
 	virtual void EnableBloatedBounds(ClientRenderHandle_t handle, bool bEnable) = 0;
+
+	// Warns about leaf reinsertion
+	virtual void DisableLeafReinsertion(bool bDisable) = 0;
+
+	virtual void ComputeAllBounds(void) = 0;
 };
 
 

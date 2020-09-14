@@ -11533,7 +11533,7 @@ void CTFPlayer::OnEmitFootstepSound( const CSoundParameters& params, const Vecto
 	if ( !ShouldDrawThisPlayer() && !m_Shared.IsStealthed() && !m_Shared.InCond( TF_COND_DISGUISED ) )
 	{
 		int iHalloweenFootstepType = 0;
-		if ( TF_IsHolidayActive( kHoliday_HalloweenOrFullMoon ) )
+		if ( true || TF_IsHolidayActive( kHoliday_HalloweenOrFullMoon ) )
 		{
 			CALL_ATTRIB_HOOK_INT( iHalloweenFootstepType, halloween_footstep_type );
 		}
@@ -11577,9 +11577,6 @@ void CTFPlayer::ModifyEmitSoundParams( EmitSound_t &params )
 //-----------------------------------------------------------------------------
 bool CTFPlayer::CanAttack( int iCanAttackFlags )
 {
-	if (!IsAlive())
-		return false;
-
 	CTFGameRules *pRules = TFGameRules();
 
 	Assert( pRules );

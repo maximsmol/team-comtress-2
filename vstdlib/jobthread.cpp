@@ -25,6 +25,7 @@
 
 #include "tier0/memdbgon.h"
 
+//#define JOBS_DEBUG
 
 class CJobThread;
 
@@ -194,7 +195,7 @@ public:
 	bool Start( const ThreadPoolStartParams_t &startParams = ThreadPoolStartParams_t() ) { return Start( startParams, NULL ); }
 	bool Start( const ThreadPoolStartParams_t &startParams, const char *pszNameOverride );
 	bool Stop( int timeout = TT_INFINITE );
-	void Distribute( bool bDistribute = true, int *pAffinityTable = NULL );
+	void Distribute( bool bDistribute = true, int *pAffinityTable = NULL, bool bFullCore = true );
 
 	//-----------------------------------------------------
 	// Functions for any thread
@@ -304,18 +305,20 @@ class CGlobalThreadPool : public CThreadPool
 public:
 	virtual bool Start( const ThreadPoolStartParams_t &startParamsIn )
 	{
-		int nThreads = ( CommandLine()->ParmValue( "-threads", -1 ) - 1 );
+		int nThreads = CommandLine()->ParmValue( "-threads", -1 );
 		ThreadPoolStartParams_t startParams = startParamsIn;
 
 		if ( nThreads >= 0 )
 		{
 			startParams.nThreads = nThreads;
 		}
+#if 0
 		else
 		{
-			// Cap the GlobPool threads at 12.
-			startParams.nThreadsMax = 12;
+			// Cap the GlobPool threads at 4.
+			startParams.nThreadsMax = 4;
 		}
+#endif
 		return CThreadPool::Start( startParams, "Glob" );
 	}
 
@@ -353,7 +356,6 @@ private:
 	{
 		unsigned waitResult;
 		tmZone( TELEMETRY_LEVEL0, TMZF_IDLE, "%s", __FUNCTION__ );
-#ifdef WIN32
 		enum Event_t
 		{
 			CALL_FROM_MASTER,
@@ -363,38 +365,19 @@ private:
 			NUM_EVENTS
 		};
 
-		HANDLE	 waitHandles[NUM_EVENTS];
+		CThreadEvent*	 waitHandles[NUM_EVENTS];
 		
-		waitHandles[CALL_FROM_MASTER]	= GetCallHandle().GetHandle();
-		waitHandles[SHARED_QUEUE]		= m_SharedQueue.GetEventHandle().GetHandle();
-		waitHandles[DIRECT_QUEUE] 		= m_DirectQueue.GetEventHandle().GetHandle();
+		waitHandles[CALL_FROM_MASTER]	= &GetCallHandle();
+		waitHandles[SHARED_QUEUE]		= &m_SharedQueue.GetEventHandle();
+		waitHandles[DIRECT_QUEUE] 		= &m_DirectQueue.GetEventHandle();
 		
-#ifdef _DEBUG
-		while ( ( waitResult = WaitForMultipleObjects( ARRAYSIZE(waitHandles), waitHandles, FALSE, 10 ) ) == WAIT_TIMEOUT )
+#if defined(_DEBUG) && defined(JOBS_DEBUG)
+		while ( (waitResult = ThreadWaitForEvents(ARRAYSIZE(waitHandles), waitHandles, false, 10) ) == WAIT_TIMEOUT )
 		{
 			waitResult = waitResult; // break here
 		}
 #else
-		waitResult = WaitForMultipleObjects( ARRAYSIZE(waitHandles), waitHandles, FALSE, INFINITE );
-#endif
-#else // !win32
-		bool bSet = false;
-		int nWaitTime = 100;
-
-		while( !bSet )
-		{
-			// Jobs are typically enqueued to the shared job queue so wait on it first.
-			bSet = m_SharedQueue.GetEventHandle().Wait( nWaitTime );
-			if( !bSet )
-				bSet = m_DirectQueue.GetEventHandle().Wait( 10 );
-			if ( !bSet )
-				bSet = GetCallHandle().Wait( 0 );
-		}
-
-		if ( !bSet )
-			waitResult = WAIT_TIMEOUT;
-		else
-			waitResult = WAIT_OBJECT_0;
+		waitResult = ThreadWaitForEvents( ARRAYSIZE(waitHandles), waitHandles, false, TT_INFINITE);
 #endif
 		return waitResult;
 	}
@@ -603,7 +586,7 @@ int CThreadPool::ResumeExecution()
 
 void CThreadPool::WaitForIdle( bool bAll )
 {
-	ThreadWaitForEvents( m_IdleEvents.Count(), m_IdleEvents.Base(), bAll, 60000 );
+	ThreadWaitForEvents( m_IdleEvents.Count(), m_IdleEvents.Base(), bAll, 10000 );
 }
 
 //---------------------------------------------------------
@@ -666,6 +649,9 @@ int CThreadPool::YieldWait( CJob **ppJobs, int nJobs, bool bWaitAll, unsigned ti
 
 void CThreadPool::Yield( unsigned timeout )
 {
+#if 1
+	ThreadSleepEx(timeout);
+#else
 	// @MULTICORE (toml 10/24/2006): not implemented
 	Assert( ThreadInMainThread() );
 	if ( !ThreadInMainThread() )
@@ -674,6 +660,7 @@ void CThreadPool::Yield( unsigned timeout )
 		return;
 	}
 	ThreadSleep( timeout );
+#endif
 }
 
 //---------------------------------------------------------
@@ -931,14 +918,11 @@ bool CThreadPool::Start( const ThreadPoolStartParams_t &startParams, const char 
 		}
 		else
 		{
-			nThreads = ( ci.m_nLogicalProcessors / (( ci.m_bHT ) ? 2 : 1) ) - 1; // One per
-			if ( IsPC() )
+			// One worker thread per logic processor minus main thread and graphic driver
+			nThreads = ci.m_nLogicalProcessors - 4;
+			if (nThreads < 2)
 			{
-				if ( nThreads > 3 )
-				{
-					DevMsg( "Defaulting to limit of 3 worker threads, use -threads on command line if want more\n" ); // Current >4 processor configs don't really work so well, probably due to cache issues? (toml 7/12/2007)
-					nThreads = 3;
-				}
+				nThreads = ci.m_nLogicalProcessors - 2;
 			}
 		}
 
@@ -998,7 +982,7 @@ bool CThreadPool::Start( const ThreadPoolStartParams_t &startParams, const char 
 
 	if ( !pszName )
 	{
-		pszName = ( startParams.bIOThreads ) ? "IOJobX" : "CmpJobX";
+		pszName = ( startParams.bIOThreads ) ? "IOJob" : "CmpJob";
 	}
 	while ( nThreads-- )
 	{
@@ -1014,19 +998,19 @@ bool CThreadPool::Start( const ThreadPoolStartParams_t &startParams, const char 
 #endif
 	}
 
-	Distribute( bDistribute, startParams.bUseAffinityTable ? (int *)startParams.iAffinityTable : NULL );
+	Distribute( bDistribute, startParams.bUseAffinityTable ? (int *)startParams.iAffinityTable : NULL, startParams.bFullCore );
 
 	return true;
 }
 
 //---------------------------------------------------------
 
-void CThreadPool::Distribute( bool bDistribute, int *pAffinityTable )
+void CThreadPool::Distribute( bool bDistribute, int *pAffinityTable, bool bFullCore )
 {
 	if ( bDistribute )
 	{
 		const CPUInformation &ci = *GetCPUInformation();
-		int nHwThreadsPer = (( ci.m_bHT ) ? 2 : 1);
+		int nHwThreadsPer = (( ci.m_bHT && bFullCore ) ? 2 : 1);
 		if ( ci.m_nLogicalProcessors > 1 )
 		{
 			if ( !pAffinityTable )
@@ -1042,16 +1026,16 @@ void CThreadPool::Distribute( bool bDistribute, int *pAffinityTable )
 					{
 						ThreadHandle_t hMainThread = ThreadGetCurrentHandle();
 						Thread_SetIdealProcessor( hMainThread, 0 );
-						int iProc = 0;
+						static int iProc = ci.m_nLogicalProcessors > 2 ? 2 : 0;
 						for ( int i = 0; i < m_Threads.Count(); i++ )
 						{
 							iProc += nHwThreadsPer;
 							if ( iProc >= ci.m_nLogicalProcessors )
 							{
 								iProc %= ci.m_nLogicalProcessors;
-								if ( nHwThreadsPer > 1 )
+								if (iProc < 2 && ci.m_nLogicalProcessors > 2)
 								{
-									iProc = ( iProc + 1 ) % nHwThreadsPer;
+									iProc = 2;
 								}
 							}
 							Thread_SetIdealProcessor((ThreadHandle_t)m_Threads[i]->GetThreadHandle(), iProc);
@@ -1061,16 +1045,16 @@ void CThreadPool::Distribute( bool bDistribute, int *pAffinityTable )
 				}
 #else
 				// no affinity table, distribution is cycled across all available
-				int iProc = 0;
+				static int iProc = ci.m_nLogicalProcessors > 2 ? 2 : 0;
 				for ( int i = 0; i < m_Threads.Count(); i++ )
 				{
 					iProc += nHwThreadsPer;
 					if ( iProc >= ci.m_nLogicalProcessors )
 					{
 						iProc %= ci.m_nLogicalProcessors;
-						if ( nHwThreadsPer > 1 )
+						if (iProc < 2 && ci.m_nLogicalProcessors > 2)
 						{
-							iProc = ( iProc + 1 ) % nHwThreadsPer;
+							iProc = 2;
 						}
 					}
 #ifdef WIN32
@@ -1119,7 +1103,7 @@ bool CThreadPool::Stop( int timeout )
 	{
 		while( m_Threads[i]->IsAlive() )
 		{
-			ThreadSleep( 0 );
+			ThreadSleepEx();
 		}
 		delete m_Threads[i];
 	}
@@ -1235,7 +1219,7 @@ void Test( bool bDistribute, bool bSleep = true, bool bFinishExecute = false, bo
 					g_pTestThreadPool->AddJob( &jobs[j] );
 					if ( bSleep && j % 16 == 0 )
 					{
-						ThreadSleep( 0 );
+						ThreadSleepEx( 0 );
 					}
 				}
 				if ( !bInterleavePushPop )
